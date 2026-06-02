@@ -37,7 +37,7 @@ window.DBPages['devbench-notes'] = function () {
 		if (!notes.length) h = '<div class="db-empty"><p>No notes yet.</p></div>';
 		notes.forEach(function (n) {
 			h += '<div class="db-note-item" data-id="' + DBEsc(n.id) + '" style="padding:12px 16px;border-bottom:1px solid var(--db-border);cursor:pointer' + (current === n.id ? ';background:var(--db-accent-soft)' : '') + '">'
-				+ '<div class="db-flex-between"><strong style="font-size:13px">' + (n.pinned ? '📌 ' : '') + DBEsc(n.title) + '</strong></div>'
+				+ '<div class="db-flex db-gap-4"><strong style="font-size:13px">' + (n.pinned ? DBIcon('pin', 13) + ' ' : '') + DBEsc(n.title) + '</strong></div>'
 				+ '<div class="db-muted" style="font-size:11px;margin-top:2px">' + new Date(n.updated * 1000).toLocaleString() + '</div></div>';
 		});
 		$('#db-note-list').html(h);

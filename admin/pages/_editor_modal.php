@@ -5,7 +5,7 @@
 	<div class="db-editor">
 		<div class="db-editor-head">
 			<div class="db-editor-title">
-				<span id="db-editor-icon">📄</span>
+				<span id="db-editor-icon"><?php echo DevBench_Helpers::icon( 'code', 15 ); ?></span>
 				<span class="db-editor-filename" id="db-editor-filename">untitled</span>
 				<span class="db-badge db-badge-gray db-hidden" id="db-editor-vbadge"></span>
 				<span class="db-muted" id="db-editor-perms" style="font-size:11px;font-family:var(--db-mono)"></span>

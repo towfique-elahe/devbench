@@ -18,7 +18,7 @@ include __DIR__ . '/_header.php';
 	</div>
 
 	<!-- Work area -->
-	<div>
+	<div style="min-width:0">
 		<div class="db-card">
 			<div class="db-card-head">
 				<h3 class="db-card-title"><?php echo DevBench_Helpers::icon('terminal',16); ?> SQL Query</h3>

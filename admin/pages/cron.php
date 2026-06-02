@@ -4,7 +4,7 @@ $page_id = 'devbench-cron';
 include __DIR__ . '/_header.php';
 ?>
 <div class="db-page-head">
-	<h1><?php echo DevBench_Helpers::icon('clock',22); ?> Cron Manager</h1>
+	<h1><?php echo DevBench_Helpers::icon('repeat',22); ?> Cron Manager</h1>
 	<p>View scheduled WordPress cron events, run them on demand, or unschedule them.</p>
 </div>
 

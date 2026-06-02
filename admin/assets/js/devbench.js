@@ -39,20 +39,44 @@
 	}
 	window.DBHumanSize = humanSize;
 
-	function fileIcon(ext) {
-		const m = {
-			php:'\u{1F418}', js:'\u{1F4DC}', mjs:'\u{1F4DC}', ts:'\u{1F4DC}', jsx:'\u{1F4DC}', tsx:'\u{1F4DC}',
-			css:'\u{1F3A8}', scss:'\u{1F3A8}', sass:'\u{1F3A8}', less:'\u{1F3A8}',
-			html:'\u{1F310}', htm:'\u{1F310}', twig:'\u{1F310}',
-			json:'\u{1F4CB}', yml:'\u{1F4CB}', yaml:'\u{1F4CB}', xml:'\u{1F4CB}', toml:'\u{1F4CB}',
-			md:'\u{1F4DD}', txt:'\u{1F4C4}', csv:'\u{1F4CA}', log:'\u{1FAB5}',
-			sql:'\u{1F5C4}', sqlite:'\u{1F5C4}',
-			svg:'\u{1F537}', png:'\u{1F5BC}', jpg:'\u{1F5BC}', jpeg:'\u{1F5BC}', gif:'\u{1F5BC}', webp:'\u{1F5BC}', ico:'\u{1F5BC}',
-			woff:'\u{1F524}', woff2:'\u{1F524}', ttf:'\u{1F524}', otf:'\u{1F524}',
-			zip:'\u{1F5DC}', gz:'\u{1F5DC}', tar:'\u{1F5DC}',
-			pdf:'\u{1F4D5}', sh:'\u2699\uFE0F', py:'\u{1F40D}', env:'\u{1F511}', lock:'\u{1F512}'
-		};
-		return m[ext] || '\u{1F4C4}';
+	/* Inline SVG icon set (stroke-based, matches the PHP helper). */
+	const ICON_PATHS = {
+		code: '<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>',
+		'file-text': '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/>',
+		image: '<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>',
+		archive: '<rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/>',
+		font: '<polyline points="4 7 4 4 20 4 20 7"/><line x1="9" x2="15" y1="20" y2="20"/><line x1="12" x2="12" y1="4" y2="20"/>',
+		database: '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/>',
+		folder: '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
+		file: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/>',
+		edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+		pin: '<path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>',
+		lock: '<rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>'
+	};
+
+	function icon(name, size) {
+		size = size || 15;
+		const d = ICON_PATHS[name] || ICON_PATHS.file;
+		return '<svg xmlns="http://www.w3.org/2000/svg" width="' + size + '" height="' + size +
+			'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+			'stroke-linecap="round" stroke-linejoin="round" class="db-icon">' + d + '</svg>';
+	}
+	window.DBIcon = icon;
+
+	const FILE_ICON_MAP = {
+		code: ['php','js','mjs','ts','jsx','tsx','css','scss','sass','less','html','htm','twig','json','yml','yaml','xml','toml','sh','py','sql','sqlite'],
+		'file-text': ['txt','md','csv','log','env','lock','ini','conf','pdf'],
+		image: ['svg','png','jpg','jpeg','gif','webp','ico','bmp'],
+		archive: ['zip','gz','tar','rar','7z'],
+		font: ['woff','woff2','ttf','otf']
+	};
+
+	function fileIcon(ext, size) {
+		ext = String(ext || '').toLowerCase();
+		for (const name in FILE_ICON_MAP) {
+			if (FILE_ICON_MAP[name].indexOf(ext) !== -1) return icon(name, size);
+		}
+		return icon('file', size);
 	}
 	window.DBFileIcon = fileIcon;
 
@@ -243,8 +267,8 @@
 			for (let i = 0; i < max; i++) {
 				if (oldL[i] === newL[i]) continue;
 				changes++;
-				if (oldL[i] !== undefined) h += '<div style="background:#fef2f2;color:#dc2626;padding:1px 8px"><span style="opacity:.5">' + (i + 1) + '</span> - ' + esc(oldL[i]) + '</div>';
-				if (newL[i] !== undefined) h += '<div style="background:#f0fdf4;color:#16a34a;padding:1px 8px"><span style="opacity:.5">' + (i + 1) + '</span> + ' + esc(newL[i]) + '</div>';
+				if (oldL[i] !== undefined) h += '<div style="background:var(--db-red-soft);color:var(--db-red);padding:1px 8px"><span style="opacity:.5">' + (i + 1) + '</span> - ' + esc(oldL[i]) + '</div>';
+				if (newL[i] !== undefined) h += '<div style="background:var(--db-green-soft);color:var(--db-green);padding:1px 8px"><span style="opacity:.5">' + (i + 1) + '</span> + ' + esc(newL[i]) + '</div>';
 			}
 			if (!changes) h = '<div class="db-empty"><p>No differences.</p></div>';
 			$('#db-diff-view').remove();
@@ -268,7 +292,7 @@
 		_editPath = path;
 		const ext = (name || path).split('.').pop().toLowerCase();
 		$('#db-editor-filename').text(name || path.split('/').pop());
-		$('#db-editor-icon').text(fileIcon(ext));
+		$('#db-editor-icon').html(fileIcon(ext));
 		Editor.reset();
 		VC.reset();
 		$('#db-editor-modified').hide();
@@ -353,21 +377,33 @@
 			}
 		});
 		$(document).off('click.vc').on('click.vc', '.vc-restore', function () {
-			if (confirm('Restore this version?')) { VC.restore($(this).data('id')); VC.render(); }
+			if (confirm('Restore this version and save it to the file?')) {
+				VC.restore($(this).data('id'));
+				VC.render();
+				doSave(); // persist the restored content to disk immediately
+			}
 		}).on('click.vc', '.vc-diff', function () { VC.diff($(this).data('id')); });
 	}
 	window.DBCloseEditor = closeEditor;
 
 	/* ============================================================
+	   THEME TOGGLE (dark default, persisted)
+	   ============================================================ */
+	$(document).on('click', '#db-theme-toggle', function () {
+		const light = document.documentElement.classList.toggle('devbench-theme-light');
+		try { localStorage.setItem('devbench-theme', light ? 'light' : 'dark'); } catch (e) {}
+	});
+
+	/* ============================================================
 	   PAGE ROUTER
 	   ============================================================ */
+	window.DBPages = window.DBPages || {};
+
 	$(function () {
 		const page = $('.devbench-app').data('page');
 		if (window.DBPages && typeof window.DBPages[page] === 'function') {
 			window.DBPages[page]();
 		}
 	});
-
-	window.DBPages = {};
 
 })(jQuery);

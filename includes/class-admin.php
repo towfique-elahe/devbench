@@ -20,16 +20,16 @@ class DevBench_Admin {
 			'devbench-files'     => [ 'File Manager',       'File Manager',      'Core',        'folder',    'page_files' ],
 			'devbench-database'  => [ 'Database Manager',   'Database Manager',  'Core',        'database',  'page_database' ],
 			'devbench-snippet'   => [ 'Snippet Runner',     'Snippet Runner',    'Core',        'zap',       'page_snippet' ],
-			'devbench-options'   => [ 'Options Manager',    'Options Manager',   'WordPress',   'settings',  'page_options' ],
+			'devbench-options'   => [ 'Options Manager',    'Options Manager',   'WordPress',   'list',      'page_options' ],
 			'devbench-transients'=> [ 'Transients',         'Transients',        'WordPress',   'clock',     'page_transients' ],
-			'devbench-cron'      => [ 'Cron Manager',       'Cron Manager',      'WordPress',   'clock',     'page_cron' ],
-			'devbench-config'    => [ 'WP Config Editor',   'WP Config Editor',  'WordPress',   'settings',  'page_config' ],
+			'devbench-cron'      => [ 'Cron Manager',       'Cron Manager',      'WordPress',   'repeat',    'page_cron' ],
+			'devbench-config'    => [ 'WP Config Editor',   'WP Config Editor',  'WordPress',   'sliders',   'page_config' ],
 			'devbench-plugins'   => [ 'Plugins & Themes',   'Plugins & Themes',  'WordPress',   'plug',      'page_plugins' ],
 			'devbench-mail'      => [ 'Mail Catcher',       'Mail Catcher',      'WordPress',   'mail',      'page_mail' ],
 			'devbench-notes'     => [ 'Quick Notes',        'Quick Notes',       'Utilities',   'note',      'page_notes' ],
 			'devbench-env'       => [ 'Environment Checker','Environment Checker','Environment','shield',    'page_env' ],
 			'devbench-phpinfo'   => [ 'PHP Info',           'PHP Info',          'Environment', 'server',    'page_phpinfo' ],
-			'devbench-system'    => [ 'System Info',        'System Info',       'Environment', 'info',      'page_system' ],
+			'devbench-system'    => [ 'System Info',        'System Info',       'Environment', 'cpu',       'page_system' ],
 		];
 	}
 

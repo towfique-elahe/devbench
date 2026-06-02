@@ -11,7 +11,7 @@ function db_sys_row( $k, $v ) {
 }
 ?>
 <div class="db-page-head">
-	<h1><?php echo DevBench_Helpers::icon('info',22); ?> System Info</h1>
+	<h1><?php echo DevBench_Helpers::icon('cpu',22); ?> System Info</h1>
 	<p>Full technical overview of WordPress, PHP, the database, and the server.</p>
 </div>
 

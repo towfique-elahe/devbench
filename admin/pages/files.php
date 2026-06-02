@@ -15,7 +15,7 @@ include __DIR__ . '/_header.php';
 			<input type="text" class="db-input db-btn-sm" id="db-fm-search" placeholder="Filter in folder…" style="width:170px;height:30px">
 			<button class="db-btn db-btn-sm" id="db-fm-newfile"><?php echo DevBench_Helpers::icon('code',14); ?> New File</button>
 			<button class="db-btn db-btn-sm" id="db-fm-newfolder"><?php echo DevBench_Helpers::icon('folder',14); ?> New Folder</button>
-			<button class="db-btn db-btn-sm" id="db-fm-upload"><?php echo DevBench_Helpers::icon('external',14); ?> Upload</button>
+			<button class="db-btn db-btn-sm" id="db-fm-upload"><?php echo DevBench_Helpers::icon('upload',14); ?> Upload</button>
 			<input type="file" id="db-fm-file-input" class="db-hidden">
 		</div>
 	</div>
@@ -82,18 +82,18 @@ window.DBPages['devbench-files'] = function () {
 		var h = '';
 		if (cwd !== '/' && cwd !== '') {
 			var up = cwd.split('/').slice(0, -1).join('/') || '/';
-			h += '<tr><td></td><td><a class="db-file-name db-fm-cd" data-path="' + DBEsc(up) + '" href="#"><span class="db-file-icon">📁</span> ..</a></td><td colspan="4" class="db-muted">parent directory</td></tr>';
+			h += '<tr><td></td><td><a class="db-file-name db-fm-cd" data-path="' + DBEsc(up) + '" href="#">' + DBIcon('folder', 15) + ' ..</a></td><td colspan="4" class="db-muted">parent directory</td></tr>';
 		}
 		list.forEach(function (it) {
 			var isDir = it.type === 'dir';
 			var name = isDir
-				? '<a class="db-file-name db-fm-cd" data-path="' + DBEsc(it.path) + '" href="#"><span class="db-file-icon">📁</span> ' + DBEsc(it.name) + '</a>'
+				? '<a class="db-file-name db-fm-cd" data-path="' + DBEsc(it.path) + '" href="#">' + DBIcon('folder', 15) + ' ' + DBEsc(it.name) + '</a>'
 				: '<a class="db-file-name db-fm-edit" data-path="' + DBEsc(it.path) + '" data-name="' + DBEsc(it.name) + '" href="#"><span class="db-file-icon">' + DBFileIcon(it.ext) + '</span> ' + DBEsc(it.name) + '</a>';
 			h += '<tr>'
 				+ '<td><input type="checkbox" class="db-fm-check" value="' + DBEsc(it.path) + '"></td>'
 				+ '<td>' + name + '</td>'
 				+ '<td class="db-muted">' + (isDir ? '—' : DBHumanSize(it.size)) + '</td>'
-				+ '<td class="mono">' + it.perms + (it.writable ? '' : ' 🔒') + '</td>'
+				+ '<td class="mono"><span class="db-flex db-gap-4">' + it.perms + (it.writable ? '' : '<span class="db-muted" title="Read-only">' + DBIcon('lock', 12) + '</span>') + '</span></td>'
 				+ '<td class="db-muted" style="font-size:12px">' + new Date(it.modified * 1000).toLocaleString() + '</td>'
 				+ '<td><div class="db-flex db-gap-8">'
 				+ (isDir ? '' : '<button class="db-btn db-btn-xs db-fm-edit" data-path="' + DBEsc(it.path) + '" data-name="' + DBEsc(it.name) + '">Edit</button>')
@@ -136,14 +136,40 @@ window.DBPages['devbench-files'] = function () {
 	});
 
 	/* Chmod */
+	var PERM_MODES = [
+		['644', 'Standard file — owner read/write, everyone else read-only'],
+		['755', 'Folder / executable — owner full, others read & enter/run'],
+		['600', 'Private file — owner read/write only (e.g. wp-config.php)'],
+		['640', 'Owner read/write, group read-only, others none'],
+		['750', 'Owner full, group read & enter, others none'],
+		['664', 'Owner & group read/write, others read-only'],
+		['666', 'Everyone read/write — avoid (insecure)'],
+		['777', 'Everyone read/write/execute — dangerous, avoid']
+	];
 	$('#db-fm-rows').on('click', '.db-fm-chmod', function () {
 		var path = $(this).data('path'), perms = $(this).data('perms');
-		modal('Change Permissions', '<div class="db-field"><label class="db-label">Octal mode (e.g. 644, 755)</label><input type="text" class="db-input mono" id="db-m-chmod" value="' + perms + '"></div>', 'Apply', function () {
+		var ref = '';
+		PERM_MODES.forEach(function (m) {
+			ref += '<button type="button" class="db-perm-pick" data-mode="' + m[0] + '">'
+				+ '<span class="db-badge db-badge-gray db-mono">' + m[0] + '</span>'
+				+ '<span>' + DBEsc(m[1]) + '</span></button>';
+		});
+		var body = '<div class="db-field"><label class="db-label">Octal mode (e.g. 644, 755)</label>'
+			+ '<input type="text" class="db-input mono" id="db-m-chmod" value="' + perms + '"></div>'
+			+ '<div class="db-label">Common modes (click to use)</div>'
+			+ '<div class="db-perm-ref">' + ref + '</div>'
+			+ '<div class="db-muted db-text-xs db-mt-8">Three digits = <strong>owner · group · others</strong>. '
+			+ 'Each digit = read (4) + write (2) + execute (1). E.g. 7 = rwx, 6 = rw-, 5 = r-x, 4 = r--.</div>';
+		modal('Change Permissions', body, 'Apply', function () {
 			DBAjax('files', 'chmod', { path: path, mode: $('#db-m-chmod').val() }).done(function (r) {
 				if (r.success) { DBToast.show('Permissions updated', 'success'); closeModal(); load(cwd); }
 				else DBToast.show(r.data || 'Failed', 'error');
 			});
 		});
+	});
+	/* Fill the input when a reference mode is clicked */
+	$('#db-fm-modal-body').on('click', '.db-perm-pick', function () {
+		$('#db-m-chmod').val($(this).data('mode')).focus();
 	});
 
 	/* Delete single */

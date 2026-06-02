@@ -48,6 +48,7 @@ $descriptions = [
 			<h3 class="db-card-title"><?php echo DevBench_Helpers::icon('chart',16); ?> debug.log <span class="db-badge db-badge-gray" id="db-log-size">—</span></h3>
 			<div class="db-flex db-gap-8">
 				<button class="db-btn db-btn-ghost db-btn-sm" id="db-log-refresh"><?php echo DevBench_Helpers::icon('refresh',14); ?> Refresh</button>
+				<button class="db-btn db-btn-ghost db-btn-sm" id="db-log-copy"><?php echo DevBench_Helpers::icon('copy',14); ?> Copy</button>
 				<button class="db-btn db-btn-danger db-btn-sm" id="db-log-clear">Clear</button>
 			</div>
 		</div>
@@ -81,6 +82,23 @@ window.DBPages['devbench-debug'] = function () {
 		});
 	}
 	$('#db-log-refresh').on('click', loadLog);
+	$('#db-log-copy').on('click', function () {
+		var text = $('#db-log-view').text();
+		if (!text || text === '(log is empty)' || text === 'Loading…') { DBToast.show('Nothing to copy', 'error'); return; }
+		function ok() { DBToast.show('Log copied to clipboard', 'success'); }
+		function fallback() {
+			var ta = document.createElement('textarea');
+			ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+			document.body.appendChild(ta); ta.focus(); ta.select();
+			try { document.execCommand('copy'); ok(); } catch (e) { DBToast.show('Copy failed', 'error'); }
+			document.body.removeChild(ta);
+		}
+		if (navigator.clipboard && navigator.clipboard.writeText) {
+			navigator.clipboard.writeText(text).then(ok, fallback);
+		} else {
+			fallback();
+		}
+	});
 	$('#db-log-clear').on('click', function () {
 		if (!confirm('Clear the debug log?')) return;
 		DBAjax('debug', 'clear_log').done(function (r) {

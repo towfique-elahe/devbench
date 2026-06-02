@@ -4,7 +4,7 @@ $page_id = 'devbench-options';
 include __DIR__ . '/_header.php';
 ?>
 <div class="db-page-head">
-	<h1><?php echo DevBench_Helpers::icon('settings',22); ?> Options Manager</h1>
+	<h1><?php echo DevBench_Helpers::icon('list',22); ?> Options Manager</h1>
 	<p>Browse, edit, and delete entries in the <code>wp_options</code> table. Sorted by value size to surface bloat.</p>
 </div>
 

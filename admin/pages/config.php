@@ -6,7 +6,7 @@ $writable = $cfg && is_writable( $cfg );
 include __DIR__ . '/_header.php';
 ?>
 <div class="db-page-head">
-	<h1><?php echo DevBench_Helpers::icon('settings',22); ?> WP Config Editor</h1>
+	<h1><?php echo DevBench_Helpers::icon('sliders',22); ?> WP Config Editor</h1>
 	<p>Manage constants defined in <code>wp-config.php</code> safely, without a text editor.</p>
 </div>
 
