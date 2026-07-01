@@ -8,7 +8,7 @@
 
 :root {
   /* ---- Dark palette (default) ---- */
-  --db-bg: #18181b;
+  --db-bg: #0e0f13;
   --db-surface: #1f1f23;
   --db-surface-2: #27272a;
   --db-surface-3: #2e2e33;
@@ -20,7 +20,7 @@
   --db-text-2: #a1a1aa;
   --db-muted: #71717a;
 
-  --db-accent: #93b4f5;
+  --db-accent: #6366f1;
   --db-accent-2: #a9c4f8;
   --db-accent-soft: #222a37;
   --db-on-accent: #18181b;
