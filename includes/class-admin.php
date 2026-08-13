@@ -14,6 +14,35 @@ class DevBench_Admin {
 		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue' ) );
 		add_action( 'wp_ajax_devbench', array( __CLASS__, 'route_ajax' ) );
 		add_action( 'admin_init', array( __CLASS__, 'maybe_phpinfo' ) );
+		add_filter( 'admin_body_class', array( __CLASS__, 'body_class' ) );
+
+		// DevBench supplies its own full-height chrome, so WordPress's admin
+		// footer is dropped on its screens only. Priority 11 on update_footer
+		// beats core's own core_update_footer() at 10.
+		add_filter( 'admin_footer_text', array( __CLASS__, 'clear_admin_footer' ) );
+		add_filter( 'update_footer', array( __CLASS__, 'clear_admin_footer' ), 11 );
+	}
+
+	/** Whether the screen being rendered belongs to DevBench. */
+	public static function is_devbench_screen() {
+		if ( ! function_exists( 'get_current_screen' ) ) {
+			return false;
+		}
+		$screen = get_current_screen();
+		return $screen && false !== strpos( $screen->id, 'devbench' );
+	}
+
+	/** Marks DevBench screens so the stylesheet can adjust WordPress's chrome. */
+	public static function body_class( $classes ) {
+		if ( self::is_devbench_screen() ) {
+			$classes .= ' devbench-screen';
+		}
+		return $classes;
+	}
+
+	/** Empties the admin footer text on DevBench screens, leaving it untouched elsewhere. */
+	public static function clear_admin_footer( $text ) {
+		return self::is_devbench_screen() ? '' : $text;
 	}
 
 	/** Page registry: slug => [title, menu label, group, icon, template]. */
@@ -56,15 +85,27 @@ class DevBench_Admin {
 
 		foreach ( self::pages() as $slug => $page ) {
 			$template = $page[4];
+
+			/*
+			 * The dashboard shares its slug with the parent menu, so WordPress
+			 * resolves it to the same page hook that add_menu_page() just
+			 * registered a callback on. Passing another callback here would
+			 * hook the same action twice and render the page twice, so this
+			 * entry only supplies the menu label.
+			 */
+			$callback = ( 'devbench' === $slug )
+				? ''
+				: static function () use ( $template ) {
+					self::render( $template );
+				};
+
 			add_submenu_page(
 				'devbench',
 				$page[0],
 				$page[1],
 				$capability,
 				$slug,
-				static function () use ( $template ) {
-					self::render( $template );
-				}
+				$callback
 			);
 		}
 	}

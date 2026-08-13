@@ -1,44 +1,60 @@
 /* ============================================================
    DevBench — Admin UI
    Dark by default (dev tool). Light via html.devbench-theme-light.
-   Calm, neutral palette · single blue accent · no shadows.
+
+   Monochrome, shadcn-style. The whole palette is one neutral (zinc) ramp:
+   there is no brand hue. "Primary" is simply the far end of that ramp —
+   near-white on dark, near-black on light — so filled controls invert
+   between themes and always pair with --db-on-accent for their label.
+
+   Status is expressed as WEIGHT rather than hue: pass recedes into grey,
+   warning rises to full-contrast, info sits muted. Destructive is the one
+   retained colour, matching shadcn's own --destructive, because a failed
+   check and a passing one must not look alike.
+
+   Nothing is pure #000 or #fff — the ramp runs #09090b to #fafafa.
+   Depth comes from borders only; no shadows.
    ============================================================ */
 
 :root {
   /* ---- Dark palette (default) ---- */
-  --db-bg: #0e0f13;
-  --db-surface: #1f1f23;
-  --db-surface-2: #27272a;
-  --db-surface-3: #2e2e33;
+  --db-bg: #09090b;
+  --db-surface: #121215;
+  --db-surface-2: #1c1c20;
+  --db-surface-3: #27272a;
 
-  --db-border: #2c2c31;
+  --db-border: #26262a;
   --db-border-2: #3f3f46;
 
-  --db-text: #e7e7ea;
+  --db-text: #fafafa;
   --db-text-2: #a1a1aa;
-  --db-muted: #71717a;
+  /* Between zinc-500 and zinc-400: zinc-500 lands at 3.9:1 on the card and
+     misses AA for the hints and timestamps this is used for. */
+  --db-muted: #8a8a94;
 
-  --db-accent: #6366f1;
-  --db-accent-2: #a9c4f8;
-  --db-accent-soft: #222a37;
+  /* Primary: the light end of the ramp, labelled with the dark end. */
+  --db-accent: #fafafa;
+  --db-accent-2: #d4d4d8;
+  --db-accent-soft: #26262a;
   --db-on-accent: #18181b;
 
-  --db-green: #4ade80;
-  --db-green-soft: #18271d;
-  --db-amber: #fbbf24;
-  --db-amber-soft: #2a2113;
-  --db-red: #f87171;
-  --db-red-soft: #2a1718;
-  --db-blue: #60a5fa;
-  --db-blue-soft: #16202f;
-  --db-purple: #a78bfa;
+  /* Status by weight, not hue. */
+  --db-green: #d4d4d8; /* pass — calm, recedes */
+  --db-green-soft: #1c1c20;
+  --db-amber: #fafafa; /* warning — full contrast */
+  --db-amber-soft: #2e2e33;
+  --db-red: #f87171; /* destructive — the only retained hue */
+  --db-red-soft: #2a1a1c;
+  --db-blue: #a1a1aa; /* informational — muted */
+  --db-blue-soft: #1c1c20;
+  --db-purple: #a1a1aa;
 
   /* Toast + code surfaces */
-  --db-toast-bg: #34343a;
-  --db-toast-fg: #f4f4f5;
-  --db-code-bg: #161619;
+  --db-toast-bg: #27272a;
+  --db-toast-fg: #fafafa;
+  --db-code-bg: #121215;
   --db-code-fg: #e4e4e7;
-  --db-code-gutter: #131316;
+  --db-code-gutter: #0d0d10;
   --db-code-gutter-fg: #52525b;
 
   /* Geometry */
@@ -57,41 +73,46 @@
     Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
 }
 
-/* ---- Light palette ---- */
+/* ---- Light palette: the same ramp, inverted ---- */
 html.devbench-theme-light {
-  --db-bg: #fafafa;
-  --db-surface: #ffffff;
-  --db-surface-2: #f5f5f5;
-  --db-surface-3: #ededed;
+  --db-bg: #f4f4f5;
+  --db-surface: #fafafa;
+  --db-surface-2: #f4f4f5;
+  --db-surface-3: #e4e4e7;
 
   --db-border: #e4e4e7;
   --db-border-2: #d4d4d8;
 
   --db-text: #18181b;
   --db-text-2: #52525b;
-  --db-muted: #a1a1aa;
+  /* A shade under zinc-500, which misses AA against the page background. */
+  --db-muted: #6b6b74;
 
-  --db-accent: #6486c9;
-  --db-accent-2: #5676b6;
-  --db-accent-soft: #eef1fa;
-  --db-on-accent: #ffffff;
+  /* Primary: the dark end of the ramp, labelled with the light end. */
+  --db-accent: #18181b;
+  --db-accent-2: #3f3f46;
+  --db-accent-soft: #e4e4e7;
+  --db-on-accent: #fafafa;
 
-  --db-green: #16a34a;
-  --db-green-soft: #f0fdf4;
-  --db-amber: #b45309;
-  --db-amber-soft: #fffbeb;
-  --db-red: #dc2626;
+  --db-green: #52525b; /* pass — calm, recedes */
+  --db-green-soft: #f4f4f5;
+  --db-amber: #18181b; /* warning — full contrast */
+  --db-amber-soft: #e4e4e7;
+  /* red-700, not red-600: the lighter one only reaches 4.4:1 on its own
+     badge tint, and this is the one colour carrying meaning on its own. */
+  --db-red: #b91c1c; /* destructive — the only retained hue */
   --db-red-soft: #fef2f2;
-  --db-blue: #2563eb;
-  --db-blue-soft: #eff6ff;
-  --db-purple: #7c3aed;
+  --db-blue: #63636d; /* informational — muted */
+  --db-blue-soft: #f4f4f5;
+  --db-purple: #63636d;
 
   --db-toast-bg: #18181b;
-  --db-toast-fg: #ffffff;
-  --db-code-bg: #1e1e24;
+  --db-toast-fg: #fafafa;
+  /* Code surfaces stay dark in both themes — a deliberate terminal affordance. */
+  --db-code-bg: #18181b;
   --db-code-fg: #e4e4e7;
-  --db-code-gutter: #18181d;
-  --db-code-gutter-fg: #52525b;
+  --db-code-gutter: #121215;
+  --db-code-gutter-fg: #71717a;
 }
 
 /* ============================================================
@@ -101,16 +122,52 @@ html.devbench-theme-light {
   box-sizing: border-box;
 }
 .devbench-app {
+  /*
+   * A bare 100vh overflows in wp-admin: the page sits below the fixed admin
+   * bar (<html> carries an equal padding-top) and above #wpfooter (for which
+   * #wpbody-content reserves 65px). Ignoring both adds ~97px of dead scroll to
+   * every screen. Core keeps --wp-admin--admin-bar--height current — 32px,
+   * 46px under 782px — so read it rather than hardcoding.
+   */
+  --db-adminbar: var(--wp-admin--admin-bar--height, 32px);
+  --db-wpfooter: 65px;
+  --db-viewport: calc(100vh - var(--db-adminbar) - var(--db-wpfooter));
+  /* Inset that lets the sidebar read as a floating panel. */
+  --db-gutter: 14px;
+
   font-family: var(--db-sans);
   color: var(--db-text);
   background: var(--db-bg);
-  min-height: 100vh;
+  min-height: var(--db-viewport);
   margin: 0 0 0 -20px;
   display: flex;
   font-size: 14px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+/* Under 600px core drops the padding-top and lets the bar scroll away. */
+@media screen and (max-width: 600px) {
+  .devbench-app {
+    --db-adminbar: 0px;
+  }
+}
+
+/*
+ * DevBench supplies its own chrome, so WordPress's admin footer is dropped on
+ * its screens and the 65px #wpbody-content reserves for it is reclaimed —
+ * otherwise hiding the footer would just leave a gap. Scoped to the body class
+ * added by DevBench_Admin::body_class(), so no other screen is affected.
+ * Delete this block to put the footer back.
+ */
+body.devbench-screen #wpfooter {
+  display: none;
+}
+body.devbench-screen #wpbody-content {
+  padding-bottom: 0;
+}
+body.devbench-screen .devbench-app {
+  --db-wpfooter: 0px;
 }
 .devbench-app a {
   color: var(--db-accent);
@@ -144,12 +201,30 @@ html.devbench-theme-light {
   width: 240px;
   flex-shrink: 0;
   background: var(--db-surface);
-  border-right: 1px solid var(--db-border);
-  height: 100vh;
+  border: 1px solid var(--db-border);
+  border-radius: var(--db-radius-lg);
+  margin: var(--db-gutter) 0 var(--db-gutter) var(--db-gutter);
+
+  /*
+   * Pinned rather than scrolling away. This is sticky, not fixed, on purpose:
+   * a fixed panel leaves the flex row and would have to track WordPress's own
+   * admin menu itself — 160px, 36px collapsed, 0 on mobile — and would drift
+   * the moment a user folds that menu. Sticky stays in flow, so the offset is
+   * always correct, and the result is pinned identically once scrolled.
+   *
+   * Height matches the app shell minus the two gutters, so the panel floats
+   * clear of both edges and its footer (theme toggle, WP Admin link) is never
+   * pushed below the fold.
+   */
+  height: calc(var(--db-viewport) - (var(--db-gutter) * 2));
   position: sticky;
-  top: 32px;
+  top: calc(var(--db-adminbar) + var(--db-gutter));
+  align-self: flex-start;
+
   display: flex;
   flex-direction: column;
+  /* Clips the brand and footer rules to the rounded corners. */
+  overflow-x: hidden;
   overflow-y: auto;
 }
 .db-sidebar::-webkit-scrollbar {
@@ -170,6 +245,11 @@ html.devbench-theme-light {
   padding: 17px 18px;
   border-bottom: 1px solid var(--db-border);
   flex-shrink: 0;
+}
+/* Name and version take the slack, so the toggle keeps its place at the edge. */
+.db-brand-meta {
+  min-width: 0;
+  flex: 1;
 }
 .db-brand-logo {
   width: 32px;
@@ -286,6 +366,7 @@ html.devbench-theme-light {
   justify-content: center;
   width: 28px;
   height: 28px;
+  flex-shrink: 0;
   border-radius: var(--db-radius-sm);
   border: 1px solid var(--db-border);
   background: var(--db-surface-2);
@@ -317,6 +398,20 @@ html.devbench-theme-light .db-theme-icon-moon {
   min-width: 0;
   padding: 28px 32px 60px;
   max-width: 1440px;
+}
+
+/* An embedded frame that fills the rest of the screen below the page and card
+   headings. 208px is that heading stack; the rest comes from the app shell. */
+.db-frame-fill {
+  display: block;
+  width: 100%;
+  height: calc(var(--db-viewport) - 208px);
+  min-height: 320px;
+  border: 0;
+  /* Not a token: phpinfo() renders its own light document inside this frame,
+     so the canvas stays white in both themes. */
+  background: #fff;
+  border-radius: 0 0 var(--db-radius) var(--db-radius);
 }
 
 .db-page-head {
@@ -457,24 +552,26 @@ html.devbench-theme-light .db-theme-icon-moon {
   color: var(--db-text-2);
   flex-shrink: 0;
 }
+/*
+ * Every chip keeps the one background from .db-stat-icon above, so a row of
+ * tiles reads as a single consistent grid. Emphasis lives in the glyph colour
+ * alone. Tinting the chip as well is what these modifiers used to do, and it
+ * only worked while each status was a distinct hue — on one neutral ramp it
+ * collapsed into a meaningless lightness wobble across the tiles.
+ */
 .db-stat-icon.accent {
-  background: var(--db-accent-soft);
   color: var(--db-accent);
 }
 .db-stat-icon.green {
-  background: var(--db-green-soft);
   color: var(--db-green);
 }
 .db-stat-icon.amber {
-  background: var(--db-amber-soft);
   color: var(--db-amber);
 }
 .db-stat-icon.red {
-  background: var(--db-red-soft);
   color: var(--db-red);
 }
 .db-stat-icon.blue {
-  background: var(--db-blue-soft);
   color: var(--db-blue);
 }
 .db-stat-value {
@@ -582,12 +679,12 @@ html.devbench-theme-light .db-theme-icon-moon {
 .db-btn-primary {
   background: var(--db-accent);
   border-color: var(--db-accent);
-  color: #fff;
+  color: var(--db-on-accent);
 }
 .db-btn-primary:hover {
   background: var(--db-accent-2);
   border-color: var(--db-accent-2);
-  color: #fff;
+  color: var(--db-on-accent);
 }
 
 .db-btn-danger {
@@ -604,12 +701,12 @@ html.devbench-theme-light .db-theme-icon-moon {
 .db-btn-success {
   background: var(--db-green);
   border-color: var(--db-green);
-  color: #fff;
+  color: var(--db-on-accent);
 }
 .db-btn-success:hover {
   background: var(--db-green);
   border-color: var(--db-green);
-  color: #fff;
+  color: var(--db-on-accent);
   filter: brightness(0.93);
 }
 
@@ -833,7 +930,8 @@ html.devbench-theme-light .db-theme-icon-moon {
   width: 15px;
   left: 3px;
   bottom: 3px;
-  background: #fff;
+  /* Off: the knob contrasts against the grey track. */
+  background: var(--db-text);
   border-radius: 50%;
   transition: 0.2s;
 }
@@ -842,6 +940,8 @@ html.devbench-theme-light .db-theme-icon-moon {
 }
 .db-switch input:checked + .db-switch-track:before {
   transform: translateX(17px);
+  /* On: the track is now the accent, so the knob flips to its label colour. */
+  background: var(--db-on-accent);
 }
 
 /* ============================================================
@@ -1196,12 +1296,12 @@ html.devbench-theme-light .db-theme-icon-moon {
 }
 .db-toast.error {
   background: var(--db-red);
-  color: #fff;
+  color: var(--db-on-accent);
   border-color: var(--db-red);
 }
 .db-toast.success {
   background: var(--db-green);
-  color: #fff;
+  color: var(--db-on-accent);
   border-color: var(--db-green);
 }
 @keyframes db-toast-in {
@@ -1528,9 +1628,10 @@ html.devbench-theme-light .db-theme-icon-moon {
   border-radius: 99px;
 }
 
+/* Search hits read as an inverted chip in both themes. */
 mark {
-  background: var(--db-amber);
-  color: #18181b;
+  background: var(--db-accent);
+  color: var(--db-on-accent);
   border-radius: 3px;
   padding: 0 2px;
 }

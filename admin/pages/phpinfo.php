@@ -15,7 +15,8 @@ require __DIR__ . '/_header.php';
 		<a class="db-btn db-btn-ghost db-btn-sm" href="<?php echo esc_url( $devbench_url ); ?>" target="_blank"><?php DevBench_Helpers::the_icon('external',14); ?> Open full page</a>
 	</div>
 	<div class="db-card-body flush">
-		<iframe src="<?php echo esc_url( $devbench_url ); ?>" style="width:100%;height:calc(100vh - 240px);border:0;background:#fff;border-radius:0 0 var(--db-radius) var(--db-radius)"></iframe>
+		<iframe class="db-frame-fill" src="<?php echo esc_url( $devbench_url ); ?>"
+			title="<?php esc_attr_e( 'PHP configuration report', 'devbench' ); ?>"></iframe>
 	</div>
 </div>
 

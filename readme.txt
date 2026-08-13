@@ -77,6 +77,10 @@ No. It makes no external requests and collects no data.
 == Changelog ==
 
 = 1.2.0 =
+* Redesigned around a monochrome, shadcn-style neutral palette: no brand hue, status expressed as contrast weight rather than colour, and destructive actions as the single retained accent. Every foreground/background pair meets WCAG AA in both themes.
+* The sidebar is now a rounded floating panel pinned in place while you scroll, with the light/dark switch moved up to the brand row.
+* Fixed viewport-height maths in wp-admin: the layout now accounts for the admin bar and the reserved footer space, instead of adding ~97px of dead scroll to every screen.
+* Removed the Google Fonts request; DevBench now loads no external resources at all and uses system font stacks.
 * Security: all file, directory and permission operations now go through the WordPress Filesystem API instead of direct PHP calls.
 * Security: file and `wp-config.php` writes now respect `DISALLOW_FILE_EDIT` and `DISALLOW_FILE_MODS`.
 * Security: on multisite, DevBench now requires `manage_network_options` rather than `manage_options`.

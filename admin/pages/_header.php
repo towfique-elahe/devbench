@@ -42,10 +42,16 @@ window.DBPages = window.DBPages || {};
 	<aside class="db-sidebar">
 		<div class="db-brand">
 			<div class="db-brand-logo"><?php DevBench_Helpers::the_icon( 'code', 18 ); ?></div>
-			<div>
+			<div class="db-brand-meta">
 				<div class="db-brand-name">DevBench</div>
 				<div class="db-brand-ver">v<?php echo esc_html( DEVBENCH_VERSION ); ?></div>
 			</div>
+			<button type="button" class="db-theme-toggle" id="db-theme-toggle"
+				title="<?php esc_attr_e( 'Toggle theme', 'devbench' ); ?>"
+				aria-label="<?php esc_attr_e( 'Toggle theme', 'devbench' ); ?>">
+				<span class="db-theme-icon-sun"><?php DevBench_Helpers::the_icon( 'sun', 15 ); ?></span>
+				<span class="db-theme-icon-moon"><?php DevBench_Helpers::the_icon( 'moon', 15 ); ?></span>
+			</button>
 		</div>
 		<nav class="db-nav">
 			<?php foreach ( $devbench_nav_groups as $devbench_group => $devbench_items ) : ?>
@@ -65,12 +71,6 @@ window.DBPages = window.DBPages || {};
 			<div class="db-sidebar-footer-site"><?php echo esc_html( $devbench_site_host ); ?></div>
 			<div class="db-sidebar-footer-row">
 				<a href="<?php echo esc_url( admin_url() ); ?>">&larr; <?php esc_html_e( 'WP Admin', 'devbench' ); ?></a>
-				<button type="button" class="db-theme-toggle" id="db-theme-toggle"
-					title="<?php esc_attr_e( 'Toggle theme', 'devbench' ); ?>"
-					aria-label="<?php esc_attr_e( 'Toggle theme', 'devbench' ); ?>">
-					<span class="db-theme-icon-sun"><?php DevBench_Helpers::the_icon( 'sun', 15 ); ?></span>
-					<span class="db-theme-icon-moon"><?php DevBench_Helpers::the_icon( 'moon', 15 ); ?></span>
-				</button>
 			</div>
 		</div>
 	</aside>
