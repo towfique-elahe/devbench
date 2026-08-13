@@ -190,9 +190,9 @@ window.DBPages['devbench-search'] = function() {
                 '<h3 class="db-card-title">' + DBFileIcon(f.ext) +
                 ' <span class="db-mono" style="font-size:13px">' + DBEsc(f.path) +
                 '</span> <span class="db-badge db-badge-accent">' + f.count + '</span></h3>' +
-                '<button class="db-btn db-btn-sm db-search-edit" data-path="' + DBEsc(f.path) +
-                '" data-name="' + DBEsc(f.name) + '" data-line="' + (f.matches[0] ? f.matches[0].line : 1) +
-                '">' + DBIcon('edit', 14) + ' Edit</button>' +
+                DBAction('button', 'db-search-edit', 'code', 'Open ' + f.name + ' in the editor',
+                    'data-path="' + DBEsc(f.path) + '" data-name="' + DBEsc(f.name) +
+                    '" data-line="' + (f.matches[0] ? f.matches[0].line : 1) + '"', 'sm') +
                 '</div><div class="db-card-body flush">';
             f.matches.forEach(function(m) {
                 h += '<div class="db-flex db-gap-12 db-search-jump" data-path="' + DBEsc(f.path) +

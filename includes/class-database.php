@@ -46,12 +46,33 @@ class DevBench_Database {
 		foreach ( (array) $rows as $row ) {
 			$out[] = array(
 				'name'   => $row['Name'],
-				'rows'   => (int) $row['Rows'],
+				// Deliberately not $row['Rows'] — see row_count().
+				'rows'   => self::row_count( $row['Name'] ),
 				'size'   => (int) $row['Data_length'] + (int) $row['Index_length'],
 				'engine' => $row['Engine'],
 			);
 		}
 		return $out;
+	}
+
+	/**
+	 * Exact number of rows in a table.
+	 *
+	 * SHOW TABLE STATUS reports an *estimate* for InnoDB — WordPress's default
+	 * engine — taken from sampled optimizer statistics. MySQL documents it as
+	 * varying from the true value by up to 40-50%, and on a small or recently
+	 * created database the samples do not exist yet, so it reports 0 for every
+	 * table. The number therefore has to come from COUNT(*).
+	 *
+	 * That costs one query per table, which is the right trade for a screen
+	 * whose entire job is telling you what is actually in the database, and
+	 * keeps the sidebar consistent with the count browse() already shows.
+	 */
+	private static function row_count( $table ) {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Live row count; identifier passed via %i.
+		return (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM %i', $table ) );
 	}
 
 	/** @return array|WP_Error */
@@ -77,8 +98,7 @@ class DevBench_Database {
 		$page   = max( 1, (int) $page );
 		$offset = ( $page - 1 ) * self::PER_PAGE;
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Live row count for the browser; identifier passed via %i.
-		$total = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM %i', $table ) );
+		$total = self::row_count( $table );
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Arbitrary table browsing; identifier passed via %i.
 		$rows = $wpdb->get_results(

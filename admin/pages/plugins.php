@@ -48,7 +48,13 @@ window.DBPages['devbench-plugins'] = function () {
 				h += '<tr><td><div style="font-weight:600">' + DBEsc(p.name) + '</div><div class="db-muted" style="font-size:11px;max-width:520px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + DBEsc(p.description) + '</div></td>'
 					+ '<td class="db-muted">' + DBEsc(p.version) + '</td>'
 					+ '<td><span class="db-badge ' + (p.active ? 'db-badge-green' : 'db-badge-gray') + '">' + (p.active ? 'Active' : 'Inactive') + '</span></td>'
-					+ '<td><button class="db-btn db-btn-xs db-pl-toggle" data-file="' + DBEsc(p.file) + '" data-active="' + (p.active ? '1' : '0') + '">' + (p.active ? 'Deactivate' : 'Activate') + '</button></td></tr>';
+					/* Two icons rather than one that changes meaning: an ambiguous
+					   glyph here costs you a live plugin on a misclick. */
+					+ '<td>' + DBAction('button', 'db-pl-toggle', p.active ? 'power' : 'check',
+						(p.active ? 'Deactivate ' : 'Activate ') + p.name,
+						'data-file="' + DBEsc(p.file) + '" data-active="' + (p.active ? '1' : '0') + '"'
+						+ (p.active ? ' data-confirm="Deactivate ' + DBEsc(p.name) + '?"' : ''))
+					+ '</td></tr>';
 			});
 			$('#db-pl-rows').html(h);
 		});
@@ -71,14 +77,15 @@ window.DBPages['devbench-plugins'] = function () {
 					+ (t.screenshot ? '<img src="' + DBEsc(t.screenshot) + '" style="width:100%;border-radius:8px;margin-bottom:12px;border:1px solid var(--db-border)">' : '')
 					+ '<div class="db-flex-between"><strong>' + DBEsc(t.name) + '</strong>' + (t.active ? '<span class="db-badge db-badge-green">Active</span>' : '') + '</div>'
 					+ '<div class="db-muted" style="font-size:12px;margin:4px 0 12px">v' + DBEsc(t.version) + ' · ' + DBEsc(t.author) + '</div>'
-					+ (t.active ? '' : '<button class="db-btn db-btn-sm db-th-activate" data-slug="' + DBEsc(t.slug) + '">Activate</button>')
+					+ (t.active ? '' : DBAction('button', 'db-th-activate', 'check',
+						'Activate theme ' + t.name,
+						'data-slug="' + DBEsc(t.slug) + '" data-confirm="Switch the active theme to ' + DBEsc(t.name) + '?"'))
 					+ '</div></div>';
 			});
 			$('#db-th-grid').html(h);
 		});
 	}
 	$('#db-th-grid').on('click', '.db-th-activate', function () {
-		if (!confirm('Switch the active theme?')) return;
 		DBAjax('extra', 'theme_activate', { slug: $(this).data('slug') }).done(function (r) {
 			if (r.success) { DBToast.show('Theme activated', 'success'); $('#db-th-grid').data('loaded', false); loadThemes(); }
 			else DBToast.show(r.data || 'Failed', 'error');

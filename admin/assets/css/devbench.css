@@ -169,6 +169,25 @@ body.devbench-screen #wpbody-content {
 body.devbench-screen .devbench-app {
   --db-wpfooter: 0px;
 }
+
+/*
+ * Carry the page colour up through WordPress's own wrappers.
+ *
+ * #wpwrap stretches to whichever is taller — this content or the left admin
+ * menu — and with DevBench's submenus expanded the menu usually wins. Anything
+ * below .devbench-app then falls back to WordPress's body colour (#f0f0f1),
+ * which sits a hair off our #f4f4f5 and shows as a band across the bottom that
+ * changes size page to page. Painting the wrappers makes the column one
+ * continuous colour however tall it ends up. The admin menu keeps its own
+ * background, so nothing leaks behind it.
+ */
+body.devbench-screen,
+body.devbench-screen #wpwrap,
+body.devbench-screen #wpcontent,
+body.devbench-screen #wpbody,
+body.devbench-screen #wpbody-content {
+  background: var(--db-bg);
+}
 .devbench-app a {
   color: var(--db-accent);
   text-decoration: none;
@@ -493,28 +512,34 @@ html.devbench-theme-light .db-theme-icon-moon {
   display: grid;
   gap: 14px;
 }
+/*
+ * minmax(0, 1fr), not 1fr. A bare 1fr means minmax(auto, 1fr), whose auto
+ * minimum is min-content — so a single nowrap string (a truncated log line,
+ * a wide table) sets the track's floor and squashes every other column
+ * instead of being clipped. The 0 minimum lets ellipsis and overflow work.
+ */
 .db-grid-2 {
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 .db-grid-3 {
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 .db-grid-4 {
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 @media (max-width: 1100px) {
   .db-grid-4 {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .db-grid-3 {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 @media (max-width: 782px) {
   .db-grid-2,
   .db-grid-3,
   .db-grid-4 {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -787,6 +812,21 @@ html.devbench-theme-light .db-theme-icon-moon {
   border-color: var(--db-accent);
   outline-color: var(--db-accent-soft);
 }
+/*
+ * Quick Notes title — reads as a heading but is still an input.
+ *
+ * It keeps .db-input's 11px side padding on purpose: the title sits in the
+ * card head (18px) and the body textarea in the card body (18px) with its own
+ * 11px, so both texts land 29px from the card edge and line up. Zeroing the
+ * left padding here, as an inline style used to, left the title flush against
+ * the edge and 11px out of step with everything below it.
+ */
+.devbench-app .db-note-title {
+  max-width: 360px;
+  font-weight: 600;
+  font-size: 14px;
+}
+
 .devbench-app .db-select {
   appearance: none;
   -webkit-appearance: none;
@@ -1240,6 +1280,10 @@ html.devbench-theme-light .db-theme-icon-moon {
   display: flex;
   align-items: center;
   gap: 9px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   padding: 9px 12px;
   border-radius: var(--db-radius-sm);
   border: 1px solid var(--db-border);
@@ -1541,6 +1585,18 @@ html.devbench-theme-light .db-theme-icon-moon {
 }
 .db-breadcrumb a {
   color: var(--db-accent);
+  cursor: pointer;
+  text-decoration: none;
+}
+/* On one neutral ramp a colour shift is too quiet to signal "clickable",
+   so the affordance is an underline. */
+.db-breadcrumb a:hover,
+.db-breadcrumb a:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.db-breadcrumb strong {
+  color: var(--db-text);
 }
 .db-breadcrumb span {
   color: var(--db-muted);

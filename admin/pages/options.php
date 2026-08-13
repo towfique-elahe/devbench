@@ -21,7 +21,7 @@ require __DIR__ . '/_header.php';
 		</div>
 	</div>
 	<div class="db-card-body flush"><div class="db-table-wrap"><table class="db-table">
-		<thead><tr><th>Option Name</th><th style="width:90px">Size</th><th style="width:90px">Autoload</th><th style="width:160px">Actions</th></tr></thead>
+		<thead><tr><th>Option Name</th><th style="width:90px">Size</th><th style="width:110px">Autoload</th><th style="width:80px">Actions</th></tr></thead>
 		<tbody id="db-opt-rows"><tr><td colspan="4" style="padding:24px;text-align:center"><span class="db-spinner"></span></td></tr></tbody>
 	</table></div></div>
 </div>
@@ -49,10 +49,18 @@ window.DBPages['devbench-options'] = function () {
 			if (!r.data.length) { $('#db-opt-rows').html('<tr><td colspan="4"><div class="db-empty"><p>No options found.</p></div></td></tr>'); return; }
 			var h = '';
 			r.data.forEach(function (o) {
+				var named = 'data-name="' + DBEsc(o.name) + '"';
 				h += '<tr><td><div class="db-mono" style="font-weight:600">' + DBEsc(o.name) + '</div><div class="db-muted" style="font-size:11px;max-width:520px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + DBEsc(o.preview) + '</div></td>'
 					+ '<td class="db-muted">' + DBHumanSize(o.size) + '</td>'
-					+ '<td><span class="db-badge ' + (o.autoload === 'yes' ? 'db-badge-amber' : 'db-badge-gray') + '">' + o.autoload + '</span></td>'
-					+ '<td><div class="db-flex db-gap-8"><button class="db-btn db-btn-xs db-opt-edit" data-name="' + DBEsc(o.name) + '">Edit</button><button class="db-btn db-btn-xs db-btn-danger db-opt-del" data-name="' + DBEsc(o.name) + '">Delete</button></div></td></tr>';
+					/* o.autoloaded, not o.autoload === 'yes': WordPress 6.6 added
+					   on/off/auto variants, so matching the literal string alone
+					   mislabels every option written since. */
+					+ '<td><span class="db-badge ' + (o.autoloaded ? 'db-badge-amber' : 'db-badge-gray') + '">' + DBEsc(o.autoload) + '</span></td>'
+					+ '<td><div class="db-flex db-gap-8">'
+					+ DBAction('button', 'db-opt-edit', 'edit', 'Edit ' + o.name, named)
+					+ DBAction('button', 'db-opt-del db-btn-danger', 'trash', 'Delete ' + o.name,
+						named + ' data-confirm="Delete option &quot;' + DBEsc(o.name) + '&quot;?"')
+					+ '</div></td></tr>';
 			});
 			$('#db-opt-rows').html(h);
 		});
@@ -71,7 +79,6 @@ window.DBPages['devbench-options'] = function () {
 	});
 	$('#db-opt-rows').on('click', '.db-opt-del', function () {
 		var name = $(this).data('name');
-		if (!confirm('Delete option "' + name + '"?')) return;
 		DBAjax('tools', 'option_delete', { name: name }).done(function (r) { if (r.success) { DBToast.show('Deleted', 'success'); load(); } });
 	});
 	$('#db-opt-cancel').on('click', function () { $('#db-opt-modal').removeClass('open'); });

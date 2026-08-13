@@ -13,11 +13,11 @@ require __DIR__ . '/_header.php';
 		<h3 class="db-card-title"><?php DevBench_Helpers::the_icon('clock',16); ?> Stored Transients <span class="db-badge db-badge-gray" id="db-tr-count">—</span></h3>
 		<div class="db-flex db-gap-8">
 			<button class="db-btn db-btn-ghost db-btn-sm" id="db-tr-refresh"><?php DevBench_Helpers::the_icon('refresh',14); ?> Refresh</button>
-			<button class="db-btn db-btn-danger db-btn-sm" id="db-tr-clear">Clear Expired</button>
+			<button class="db-btn db-btn-danger db-btn-sm" id="db-tr-clear" data-confirm="<?php esc_attr_e( 'Clear all expired transients?', 'devbench' ); ?>">Clear Expired</button>
 		</div>
 	</div>
 	<div class="db-card-body flush"><div class="db-table-wrap"><table class="db-table">
-		<thead><tr><th>Key</th><th style="width:90px">Size</th><th style="width:110px">Status</th><th style="width:170px">Expires</th><th style="width:90px">Action</th></tr></thead>
+		<thead><tr><th>Key</th><th style="width:90px">Size</th><th style="width:110px">Status</th><th style="width:170px">Expires</th><th style="width:70px">Action</th></tr></thead>
 		<tbody id="db-tr-rows"><tr><td colspan="5" style="padding:24px;text-align:center"><span class="db-spinner"></span></td></tr></tbody>
 	</table></div></div>
 </div>
@@ -37,9 +37,11 @@ window.DBPages['devbench-transients'] = function () {
 				var exp = t.expires === 0 ? 'Never' : new Date(t.expires * 1000).toLocaleString();
 				h += '<tr><td class="db-mono" style="font-weight:600">' + DBEsc(t.key) + '</td>'
 					+ '<td class="db-muted">' + DBHumanSize(t.size) + '</td>'
-					+ '<td><span class="db-badge ' + badge + '">' + t.status + '</span></td>'
+					+ '<td><span class="db-badge ' + badge + '">' + DBEsc(t.status) + '</span></td>'
 					+ '<td class="db-muted" style="font-size:12px">' + exp + '</td>'
-					+ '<td><button class="db-btn db-btn-xs db-btn-danger db-tr-del" data-key="' + DBEsc(t.key) + '">Delete</button></td></tr>';
+					+ '<td>' + DBAction('button', 'db-tr-del db-btn-danger', 'trash',
+						'Delete transient ' + t.key,
+						'data-key="' + DBEsc(t.key) + '" data-confirm="Delete transient &quot;' + DBEsc(t.key) + '&quot;?"') + '</td></tr>';
 			});
 			$('#db-tr-rows').html(h);
 		});
@@ -49,7 +51,6 @@ window.DBPages['devbench-transients'] = function () {
 		DBAjax('tools', 'transient_delete', { key: $(this).data('key') }).done(function (r) { if (r.success) { DBToast.show('Deleted', 'success'); load(); } });
 	});
 	$('#db-tr-clear').on('click', function () {
-		if (!confirm('Clear all expired transients?')) return;
 		DBAjax('tools', 'transients_clear_expired').done(function (r) { if (r.success) { DBToast.show('Cleared ' + r.data.cleared + ' expired', 'success'); load(); } });
 	});
 	load();

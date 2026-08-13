@@ -372,6 +372,168 @@ class DevBench_Files {
 		return $results;
 	}
 
+	/* ---------------- Download ---------------- */
+
+	/**
+	 * Validate a download request and describe the file to stream.
+	 *
+	 * Reading is gated by the plugin capability only — the same bar as opening
+	 * the file in the editor — so this deliberately does not require can_write().
+	 *
+	 * @return array|WP_Error {path, name, size}
+	 */
+	public static function prepare_download( $relative ) {
+		$abs = DevBench_Helpers::safe_path( $relative );
+
+		if ( ! $abs || ! DevBench_FS::is_file( $abs ) ) {
+			return new WP_Error( 'not_found', __( 'File not found.', 'devbench' ) );
+		}
+
+		return array(
+			'path' => $abs,
+			'name' => sanitize_file_name( basename( $abs ) ),
+			'size' => DevBench_FS::size( $abs ),
+		);
+	}
+
+	/* ---------------- Archive ---------------- */
+
+	/**
+	 * Create a zip archive from the given paths.
+	 *
+	 * Entries are stored relative to the browsed directory, so unzipping
+	 * reproduces exactly what was selected without the absolute path attached.
+	 *
+	 * @param string[] $paths        Relative paths to include.
+	 * @param string   $dir_relative Directory the archive is written into.
+	 * @param string   $name         Optional archive filename.
+	 * @return array|WP_Error
+	 */
+	public static function zip( $paths, $dir_relative, $name = '' ) {
+		$guard = self::guard_write();
+		if ( is_wp_error( $guard ) ) {
+			return $guard;
+		}
+
+		$dir = DevBench_Helpers::safe_path( $dir_relative );
+		if ( ! $dir || ! DevBench_FS::is_dir( $dir ) ) {
+			return new WP_Error( 'invalid', __( 'Invalid directory.', 'devbench' ) );
+		}
+
+		$sources = array();
+		foreach ( (array) $paths as $path ) {
+			$abs = DevBench_Helpers::safe_path( $path );
+			if ( $abs && DevBench_FS::exists( $abs ) ) {
+				$sources[] = $abs;
+			}
+		}
+		if ( ! $sources ) {
+			return new WP_Error( 'empty', __( 'Nothing to archive.', 'devbench' ) );
+		}
+
+		$name = $name ? sanitize_file_name( $name ) : '';
+		if ( '' === $name ) {
+			$name = 'devbench-archive-' . gmdate( 'Ymd-His' );
+		}
+		if ( '.zip' !== strtolower( substr( $name, -4 ) ) ) {
+			$name .= '.zip';
+		}
+
+		$target = $dir . '/' . $name;
+		if ( DevBench_FS::exists( $target ) ) {
+			return new WP_Error( 'exists', __( 'An archive with that name already exists.', 'devbench' ) );
+		}
+
+		// ZipArchive when the host has ext-zip, otherwise the PclZip library
+		// WordPress already bundles — no third-party code is shipped either way.
+		$result = class_exists( 'ZipArchive' )
+			? self::zip_with_ziparchive( $sources, $target )
+			: self::zip_with_pclzip( $sources, $dir, $target );
+
+		if ( is_wp_error( $result ) ) {
+			return $result;
+		}
+
+		return array(
+			'path' => DevBench_Helpers::relative_path( $target ),
+			'name' => $name,
+			'size' => DevBench_Helpers::filesize( DevBench_FS::size( $target ) ),
+		);
+	}
+
+	/** @return true|WP_Error */
+	private static function zip_with_ziparchive( $sources, $target ) {
+		$zip = new ZipArchive();
+
+		if ( true !== $zip->open( $target, ZipArchive::CREATE | ZipArchive::OVERWRITE ) ) {
+			return new WP_Error( 'zip_failed', __( 'Could not create the archive.', 'devbench' ) );
+		}
+
+		foreach ( $sources as $abs ) {
+			$local = basename( $abs );
+
+			if ( ! DevBench_FS::is_dir( $abs ) ) {
+				$zip->addFile( $abs, $local );
+				continue;
+			}
+
+			$zip->addEmptyDir( $local );
+			foreach ( self::walk( $abs ) as $child => $is_dir ) {
+				// Never swallow the archive being written.
+				if ( $child === $target ) {
+					continue;
+				}
+				$entry = $local . '/' . ltrim( str_replace( $abs, '', $child ), '/\\' );
+				if ( $is_dir ) {
+					$zip->addEmptyDir( $entry );
+				} else {
+					$zip->addFile( $child, $entry );
+				}
+			}
+		}
+
+		return $zip->close() ? true : new WP_Error( 'zip_failed', __( 'Could not finalise the archive.', 'devbench' ) );
+	}
+
+	/** @return true|WP_Error */
+	private static function zip_with_pclzip( $sources, $base, $target ) {
+		require_once ABSPATH . 'wp-admin/includes/class-pclzip.php';
+
+		$archive = new PclZip( $target );
+
+		// Stripping the browsed directory gives the same relative entry names
+		// the ZipArchive path produces via basename().
+		$result = $archive->create( $sources, PCLZIP_OPT_REMOVE_PATH, $base );
+
+		if ( 0 === $result ) {
+			return new WP_Error( 'zip_failed', $archive->errorInfo( true ) );
+		}
+		return true;
+	}
+
+	/**
+	 * Every descendant of a directory.
+	 *
+	 * @return array Absolute path => whether it is a directory.
+	 */
+	private static function walk( $dir ) {
+		$out = array();
+
+		try {
+			$iterator = new RecursiveIteratorIterator(
+				new RecursiveDirectoryIterator( $dir, RecursiveDirectoryIterator::SKIP_DOTS ),
+				RecursiveIteratorIterator::SELF_FIRST
+			);
+		} catch ( Exception $e ) {
+			return $out;
+		}
+
+		foreach ( $iterator as $item ) {
+			$out[ $item->getPathname() ] = $item->isDir();
+		}
+		return $out;
+	}
+
 	/* ---------------- Upload ---------------- */
 
 	/**
@@ -493,6 +655,11 @@ class DevBench_Files {
 			case 'bulk_delete':
 				$paths = isset( $_POST['paths'] ) ? array_map( 'sanitize_text_field', wp_unslash( (array) $_POST['paths'] ) ) : array();
 				$reply( self::bulk_delete( $paths ) );
+				break;
+
+			case 'zip':
+				$paths = isset( $_POST['paths'] ) ? array_map( 'sanitize_text_field', wp_unslash( (array) $_POST['paths'] ) ) : array();
+				$reply( self::zip( $paths, '' === $path ? '/' : $path, $name ) );
 				break;
 
 			case 'search':

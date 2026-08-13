@@ -8,7 +8,7 @@ require __DIR__ . '/_header.php';
 	<p>A persistent scratchpad for snippets, credentials reminders, and to-dos — stored in your database.</p>
 </div>
 
-<div class="db-grid" style="grid-template-columns:300px 1fr;gap:16px;align-items:start">
+<div class="db-grid" style="grid-template-columns:300px minmax(0, 1fr);gap:16px;align-items:start">
 	<div class="db-card db-mb-0">
 		<div class="db-card-head"><h3 class="db-card-title">Notes</h3><button class="db-btn db-btn-primary db-btn-sm" id="db-note-new">+ New</button></div>
 		<div class="db-card-body flush" id="db-note-list" style="max-height:70vh;overflow:auto"><div style="padding:16px;text-align:center"><span class="db-spinner"></span></div></div>
@@ -16,7 +16,9 @@ require __DIR__ . '/_header.php';
 
 	<div class="db-card db-mb-0">
 		<div class="db-card-head">
-			<input type="text" class="db-input" id="db-note-title" placeholder="Note title" style="max-width:360px;border:none;font-weight:600;box-shadow:none;padding-left:0">
+			<input type="text" class="db-input db-note-title" id="db-note-title"
+				placeholder="<?php esc_attr_e( 'Note title', 'devbench' ); ?>"
+				aria-label="<?php esc_attr_e( 'Note title', 'devbench' ); ?>">
 			<div class="db-flex db-gap-8">
 				<label class="db-flex db-gap-8" style="font-size:13px;cursor:pointer"><input type="checkbox" id="db-note-pin"> Pin</label>
 				<button class="db-btn db-btn-success db-btn-sm" id="db-note-save">Save</button>
@@ -36,9 +38,15 @@ window.DBPages['devbench-notes'] = function () {
 		var h = '';
 		if (!notes.length) h = '<div class="db-empty"><p>No notes yet.</p></div>';
 		notes.forEach(function (n) {
-			h += '<div class="db-note-item" data-id="' + DBEsc(n.id) + '" style="padding:12px 16px;border-bottom:1px solid var(--db-border);cursor:pointer' + (current === n.id ? ';background:var(--db-accent-soft)' : '') + '">'
-				+ '<div class="db-flex db-gap-4"><strong style="font-size:13px">' + (n.pinned ? DBIcon('pin', 13) + ' ' : '') + DBEsc(n.title) + '</strong></div>'
-				+ '<div class="db-muted" style="font-size:11px;margin-top:2px">' + new Date(n.updated * 1000).toLocaleString() + '</div></div>';
+			var title = n.title || 'Untitled';
+			h += '<div class="db-note-item db-flex-between" data-id="' + DBEsc(n.id) + '" style="padding:12px 16px;border-bottom:1px solid var(--db-border);cursor:pointer;gap:8px' + (current === n.id ? ';background:var(--db-accent-soft)' : '') + '">'
+				+ '<div style="min-width:0">'
+				+ '<div class="db-flex db-gap-4"><strong style="font-size:13px">' + (n.pinned ? DBIcon('pin', 13) + ' ' : '') + DBEsc(title) + '</strong></div>'
+				+ '<div class="db-muted" style="font-size:11px;margin-top:2px">' + new Date(n.updated * 1000).toLocaleString() + '</div>'
+				+ '</div>'
+				+ DBAction('button', 'db-note-del db-btn-danger', 'trash', 'Delete note: ' + title,
+					'data-id="' + DBEsc(n.id) + '" data-confirm="Delete the note &quot;' + DBEsc(title) + '&quot;? This cannot be undone."')
+				+ '</div>';
 		});
 		$('#db-note-list').html(h);
 	}
@@ -55,9 +63,28 @@ window.DBPages['devbench-notes'] = function () {
 
 	$('#db-note-list').on('click', '.db-note-item', function () { select($(this).data('id')); });
 
-	$('#db-note-new').on('click', function () {
+	/* Delete sits inside the clickable row, so keep the click from also
+	   selecting the note being removed. */
+	$('#db-note-list').on('click', '.db-note-del', function (e) {
+		e.stopPropagation();
+		var id = $(this).data('id');
+		DBAjax('extra', 'note_delete', { id: id }).done(function (r) {
+			if (!r.success) { DBToast.show(r.data || 'Failed', 'error'); return; }
+			DBToast.show('Note deleted', 'success');
+			/* If the open note was the one deleted, clear the editor. Leaving
+			   its id in `current` would make the next Save recreate it. */
+			if (current === id) blank();
+			boot();
+		});
+	});
+
+	function blank() {
 		current = null;
 		$('#db-note-title').val(''); $('#db-note-body').val(''); $('#db-note-pin').prop('checked', false);
+	}
+
+	$('#db-note-new').on('click', function () {
+		blank();
 		render(); $('#db-note-title').focus();
 	});
 

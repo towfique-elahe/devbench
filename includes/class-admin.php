@@ -14,6 +14,7 @@ class DevBench_Admin {
 		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue' ) );
 		add_action( 'wp_ajax_devbench', array( __CLASS__, 'route_ajax' ) );
 		add_action( 'admin_init', array( __CLASS__, 'maybe_phpinfo' ) );
+		add_action( 'admin_init', array( __CLASS__, 'maybe_download' ) );
 		add_filter( 'admin_body_class', array( __CLASS__, 'body_class' ) );
 
 		// DevBench supplies its own full-height chrome, so WordPress's admin
@@ -62,6 +63,7 @@ class DevBench_Admin {
 			'devbench-plugins'    => array( __( 'Plugins & Themes', 'devbench' ), __( 'Plugins & Themes', 'devbench' ), __( 'WordPress', 'devbench' ), 'plug', 'plugins' ),
 			'devbench-mail'       => array( __( 'Mail Catcher', 'devbench' ), __( 'Mail Catcher', 'devbench' ), __( 'WordPress', 'devbench' ), 'mail', 'mail' ),
 			'devbench-notes'      => array( __( 'Quick Notes', 'devbench' ), __( 'Quick Notes', 'devbench' ), __( 'Utilities', 'devbench' ), 'note', 'notes' ),
+			'devbench-report'     => array( __( 'Report a Bug', 'devbench' ), __( 'Report a Bug', 'devbench' ), __( 'Utilities', 'devbench' ), 'send', 'report' ),
 			'devbench-env'        => array( __( 'Environment Checker', 'devbench' ), __( 'Environment Checker', 'devbench' ), __( 'Environment', 'devbench' ), 'shield', 'env' ),
 			'devbench-phpinfo'    => array( __( 'PHP Info', 'devbench' ), __( 'PHP Info', 'devbench' ), __( 'Environment', 'devbench' ), 'server', 'phpinfo' ),
 			'devbench-system'     => array( __( 'System Info', 'devbench' ), __( 'System Info', 'devbench' ), __( 'Environment', 'devbench' ), 'cpu', 'system' ),
@@ -121,8 +123,10 @@ class DevBench_Admin {
 			'devbench',
 			'DevBench',
 			array(
-				'ajax_url' => admin_url( 'admin-ajax.php' ),
-				'nonce'    => wp_create_nonce( 'devbench_nonce' ),
+				'ajax_url'       => admin_url( 'admin-ajax.php' ),
+				'nonce'          => wp_create_nonce( 'devbench_nonce' ),
+				'download_url'   => admin_url( 'admin.php?page=devbench-files' ),
+				'download_nonce' => wp_create_nonce( 'devbench_download' ),
 			)
 		);
 	}
@@ -179,6 +183,47 @@ class DevBench_Admin {
 
 		// phpcs:ignore WordPress.PHP.DevelopmentFunctions.prevent_path_disclosure_phpinfo -- This screen exists solely to show phpinfo() to an authenticated administrator.
 		phpinfo();
+		exit;
+	}
+
+	/**
+	 * Stream a file from the File Manager as a download.
+	 *
+	 * Everything is sent as an octet-stream attachment regardless of the real
+	 * type: these files come from inside the install and are served from the
+	 * site's own origin, so letting a browser render an .html or .svg inline
+	 * would be a self-XSS vector.
+	 */
+	public static function maybe_download() {
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Nonce is verified by check_admin_referer() below.
+		if ( ! isset( $_GET['devbench_download'] ) ) {
+			return;
+		}
+		if ( ! DevBench_Helpers::can_manage() ) {
+			return;
+		}
+		check_admin_referer( 'devbench_download' );
+
+		$path = isset( $_GET['path'] ) ? sanitize_text_field( wp_unslash( $_GET['path'] ) ) : '';
+		$file = DevBench_Files::prepare_download( $path );
+
+		if ( is_wp_error( $file ) ) {
+			wp_die( esc_html( $file->get_error_message() ), '', array( 'response' => 404 ) );
+		}
+
+		nocache_headers();
+		header( 'Content-Type: application/octet-stream' );
+		header( 'Content-Disposition: attachment; filename="' . $file['name'] . '"' );
+		header( 'Content-Length: ' . (int) $file['size'] );
+		header( 'X-Content-Type-Options: nosniff' );
+
+		// Discard the admin page WordPress has already started buffering.
+		while ( ob_get_level() ) {
+			ob_end_clean();
+		}
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_readfile -- WP_Filesystem has no streaming read; get_contents() would load the whole file into memory just to echo it.
+		readfile( $file['path'] );
 		exit;
 	}
 

@@ -243,6 +243,149 @@ class DevBench_Extra {
 		);
 	}
 
+	/* ---------------- Bug reports ---------------- */
+
+	/** Where bug reports go. */
+	const REPORT_ADDRESS = 'towfiqueelahe6@gmail.com';
+
+	/** Seconds between reports, so a double-click cannot send twice. */
+	const REPORT_THROTTLE = 60;
+
+	/**
+	 * The environment block offered alongside a report.
+	 *
+	 * Deliberately excludes anything secret — no keys, salts, passwords or
+	 * database credentials — and the user is shown this exact text before
+	 * sending, so nothing leaves the site unseen.
+	 */
+	public static function environment_summary() {
+		global $wpdb;
+
+		if ( ! function_exists( 'get_plugins' ) ) {
+			require_once ABSPATH . 'wp-admin/includes/plugin.php';
+		}
+
+		$theme  = wp_get_theme();
+		$active = (array) get_option( 'active_plugins', array() );
+		$all    = get_plugins();
+
+		$lines = array(
+			'DevBench:  ' . DEVBENCH_VERSION,
+			'WordPress: ' . get_bloginfo( 'version' ) . ( is_multisite() ? ' (multisite)' : '' ),
+			'PHP:       ' . PHP_VERSION . ' (' . php_sapi_name() . ')',
+			'Database:  ' . $wpdb->db_version(),
+			'Theme:     ' . $theme->get( 'Name' ) . ' ' . $theme->get( 'Version' ),
+			'Locale:    ' . get_locale(),
+			'Memory:    ' . ini_get( 'memory_limit' ),
+			'Site URL:  ' . get_site_url(),
+			'',
+			'Active plugins (' . count( $active ) . '):',
+		);
+
+		foreach ( $active as $file ) {
+			$lines[] = '  - ' . ( isset( $all[ $file ] )
+				? $all[ $file ]['Name'] . ' ' . $all[ $file ]['Version']
+				: $file );
+		}
+
+		return implode( "\n", $lines );
+	}
+
+	/**
+	 * Email a bug report to the plugin author.
+	 *
+	 * @param string $subject             Short summary.
+	 * @param string $message             What happened.
+	 * @param string $reply_to            Address the author can answer on.
+	 * @param bool   $include_environment Whether to append environment_summary().
+	 * @return true|WP_Error
+	 */
+	public static function send_bug_report( $subject, $message, $reply_to, $include_environment ) {
+		$message = trim( $message );
+
+		if ( '' === $message ) {
+			return new WP_Error( 'empty', __( 'Please describe the problem before sending.', 'devbench' ) );
+		}
+		/*
+		 * Validate before sanitising. sanitize_email() answers an invalid
+		 * address with an empty string, so sanitising first would silently drop
+		 * a typo and send the report with no way to reply to it.
+		 */
+		$typed = trim( (string) $reply_to );
+		if ( '' !== $typed ) {
+			$cleaned = sanitize_email( $typed );
+
+			/*
+			 * Reject anything a sanitiser would have to change, rather than
+			 * mailing the changed version. "a<b>@x.com" cleans to "a@x.com"
+			 * and "foo bar@x.com" to "foobar@x.com" — both valid addresses,
+			 * neither the one the user typed, and replies would vanish.
+			 * This also rules out newline injection into the Reply-To header.
+			 */
+			if ( $cleaned !== $typed || ! is_email( $cleaned ) ) {
+				return new WP_Error( 'email', __( 'That reply address is not a valid email.', 'devbench' ) );
+			}
+			$reply_to = $cleaned;
+		} else {
+			$reply_to = '';
+		}
+		if ( get_transient( 'devbench_report_throttle' ) ) {
+			return new WP_Error( 'throttled', __( 'A report was just sent. Give it a moment before sending another.', 'devbench' ) );
+		}
+
+		$body = $message;
+		if ( $include_environment ) {
+			$body .= "\n\n---\n" . self::environment_summary();
+		}
+
+		$headers = array( 'Content-Type: text/plain; charset=UTF-8' );
+		if ( '' !== $reply_to ) {
+			$headers[] = 'Reply-To: ' . $reply_to;
+		}
+
+		/*
+		 * DevBench's own Mail Catcher hooks pre_wp_mail to stop delivery. A bug
+		 * report is not application mail, and swallowing it would look exactly
+		 * like the bug the user is trying to report — so step around the catcher
+		 * for this one send, then put it straight back.
+		 */
+		$catcher = has_filter( 'pre_wp_mail', array( __CLASS__, 'catch_mail' ) );
+		if ( false !== $catcher ) {
+			remove_filter( 'pre_wp_mail', array( __CLASS__, 'catch_mail' ), $catcher );
+		}
+
+		// Surface why a send failed instead of reporting a bare "failed".
+		$failure = '';
+		$capture = static function ( $error ) use ( &$failure ) {
+			$failure = $error->get_error_message();
+		};
+		add_action( 'wp_mail_failed', $capture );
+
+		$sent = wp_mail(
+			self::REPORT_ADDRESS,
+			'[DevBench] ' . ( '' !== $subject ? $subject : __( 'Bug report', 'devbench' ) ),
+			$body,
+			$headers
+		);
+
+		remove_action( 'wp_mail_failed', $capture );
+		if ( false !== $catcher ) {
+			add_filter( 'pre_wp_mail', array( __CLASS__, 'catch_mail' ), $catcher, 2 );
+		}
+
+		if ( ! $sent ) {
+			return new WP_Error(
+				'send_failed',
+				'' !== $failure
+					? $failure
+					: __( 'WordPress could not send the email. Check this site’s mail configuration.', 'devbench' )
+			);
+		}
+
+		set_transient( 'devbench_report_throttle', 1, self::REPORT_THROTTLE );
+		return true;
+	}
+
 	/* ---------------- AJAX ---------------- */
 
 	public static function handle_ajax() {
@@ -410,6 +553,22 @@ class DevBench_Extra {
 					)
 				);
 				update_option( 'devbench_notes', $notes, false );
+				wp_send_json_success();
+				break;
+
+			/* Bug report */
+			case 'bug_report':
+				$result = self::send_bug_report(
+					isset( $_POST['subject'] ) ? sanitize_text_field( wp_unslash( $_POST['subject'] ) ) : '',
+					isset( $_POST['message'] ) ? sanitize_textarea_field( wp_unslash( $_POST['message'] ) ) : '',
+					// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Passed raw on purpose: send_bug_report() rejects anything a sanitiser would have to alter, so cleaning it here would mask a bad address instead of reporting it. Nothing unvalidated escapes that check.
+					isset( $_POST['reply_to'] ) ? wp_unslash( $_POST['reply_to'] ) : '',
+					isset( $_POST['environment'] ) && '1' === sanitize_key( wp_unslash( $_POST['environment'] ) )
+				);
+
+				if ( is_wp_error( $result ) ) {
+					wp_send_json_error( $result->get_error_message() );
+				}
 				wp_send_json_success();
 				break;
 

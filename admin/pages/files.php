@@ -22,7 +22,10 @@ require __DIR__ . '/_header.php';
 
 	<div id="db-fm-bulkbar" class="db-flex-between db-hidden" style="padding:8px 20px;background:var(--db-accent-soft);border-bottom:1px solid var(--db-border)">
 		<span class="db-mono" style="font-size:12px;color:var(--db-accent)" id="db-fm-selcount">0 selected</span>
-		<button class="db-btn db-btn-danger db-btn-sm" id="db-fm-bulkdelete">Delete selected</button>
+		<div class="db-flex db-gap-8">
+			<button class="db-btn db-btn-sm" id="db-fm-bulkzip"><?php DevBench_Helpers::the_icon( 'archive', 14 ); ?> <?php esc_html_e( 'Zip selected', 'devbench' ); ?></button>
+			<button class="db-btn db-btn-danger db-btn-sm" id="db-fm-bulkdelete"><?php esc_html_e( 'Delete selected', 'devbench' ); ?></button>
+		</div>
 	</div>
 
 	<div class="db-card-body flush">
@@ -30,7 +33,7 @@ require __DIR__ . '/_header.php';
 		<div class="db-table-wrap"><table class="db-table">
 			<thead><tr>
 				<th style="width:34px"><input type="checkbox" id="db-fm-selectall"></th>
-				<th>Name</th><th style="width:90px">Size</th><th style="width:90px">Perms</th><th style="width:150px">Modified</th><th style="width:220px">Actions</th>
+				<th>Name</th><th style="width:90px">Size</th><th style="width:90px">Perms</th><th style="width:150px">Modified</th><th style="width:170px">Actions</th>
 			</tr></thead>
 			<tbody id="db-fm-rows"><tr><td colspan="6" style="padding:24px;text-align:center"><span class="db-spinner"></span></td></tr></tbody>
 		</table></div>
@@ -69,13 +72,19 @@ window.DBPages['devbench-files'] = function () {
 	}
 
 	function breadcrumb() {
-		var parts = cwd.split('/').filter(Boolean), h = '<a data-path="/">root</a>', acc = '';
+		/* href="#" matters: without it these are not links — no pointer cursor,
+		   no tab stop, no Enter. The click handler preventDefaults it. */
+		var parts = cwd.split('/').filter(Boolean), h = '<a href="#" data-path="/">root</a>', acc = '';
 		parts.forEach(function (p, i) {
 			acc += '/' + p;
-			h += ' <span>/</span> ' + (i === parts.length - 1 ? '<strong>' + DBEsc(p) + '</strong>' : '<a data-path="' + DBEsc(acc) + '">' + DBEsc(p) + '</a>');
+			h += ' <span>/</span> ' + (i === parts.length - 1
+				? '<strong aria-current="page">' + DBEsc(p) + '</strong>'
+				: '<a href="#" data-path="' + DBEsc(acc) + '">' + DBEsc(p) + '</a>');
 		});
 		$('#db-fm-breadcrumb').html(h);
 	}
+
+	var action = DBAction;
 
 	function render(list) {
 		if (!list.length) { $('#db-fm-rows').html('<tr><td colspan="6"><div class="db-empty"><p>This folder is empty.</p></div></td></tr>'); return; }
@@ -89,17 +98,21 @@ window.DBPages['devbench-files'] = function () {
 			var name = isDir
 				? '<a class="db-file-name db-fm-cd" data-path="' + DBEsc(it.path) + '" href="#">' + DBIcon('folder', 15) + ' ' + DBEsc(it.name) + '</a>'
 				: '<a class="db-file-name db-fm-edit" data-path="' + DBEsc(it.path) + '" data-name="' + DBEsc(it.name) + '" href="#"><span class="db-file-icon">' + DBFileIcon(it.ext) + '</span> ' + DBEsc(it.name) + '</a>';
+			var data = 'data-path="' + DBEsc(it.path) + '" data-name="' + DBEsc(it.name) + '"';
+
 			h += '<tr>'
 				+ '<td><input type="checkbox" class="db-fm-check" value="' + DBEsc(it.path) + '"></td>'
 				+ '<td>' + name + '</td>'
 				+ '<td class="db-muted">' + (isDir ? '—' : DBHumanSize(it.size)) + '</td>'
-				+ '<td class="mono"><span class="db-flex db-gap-4">' + it.perms + (it.writable ? '' : '<span class="db-muted" title="Read-only">' + DBIcon('lock', 12) + '</span>') + '</span></td>'
+				+ '<td class="mono"><span class="db-flex db-gap-4">' + DBEsc(it.perms) + (it.writable ? '' : '<span class="db-muted" title="Read-only">' + DBIcon('lock', 12) + '</span>') + '</span></td>'
 				+ '<td class="db-muted" style="font-size:12px">' + new Date(it.modified * 1000).toLocaleString() + '</td>'
 				+ '<td><div class="db-flex db-gap-8">'
-				+ (isDir ? '' : '<button class="db-btn db-btn-xs db-fm-edit" data-path="' + DBEsc(it.path) + '" data-name="' + DBEsc(it.name) + '">Edit</button>')
-				+ '<button class="db-btn db-btn-xs db-fm-rename" data-path="' + DBEsc(it.path) + '" data-name="' + DBEsc(it.name) + '">Rename</button>'
-				+ '<button class="db-btn db-btn-xs db-fm-chmod" data-path="' + DBEsc(it.path) + '" data-perms="' + it.perms + '">Perms</button>'
-				+ '<button class="db-btn db-btn-xs db-btn-danger db-fm-delete" data-path="' + DBEsc(it.path) + '" data-name="' + DBEsc(it.name) + '">Del</button>'
+				+ (isDir ? '' : action('button', 'db-fm-edit', 'code', 'Edit ' + it.name, data))
+				+ (isDir ? '' : action('a', '', 'download', 'Download ' + it.name, 'href="' + DBEsc(DBDownloadUrl(it.path)) + '"'))
+				+ action('button', 'db-fm-rename', 'edit', 'Rename ' + it.name, data)
+				+ action('button', 'db-fm-chmod', 'key', 'Permissions for ' + it.name, 'data-path="' + DBEsc(it.path) + '" data-perms="' + DBEsc(it.perms) + '"')
+				+ action('button', 'db-fm-delete db-btn-danger', 'trash', 'Delete ' + it.name,
+					data + ' data-confirm="Delete &quot;' + DBEsc(it.name) + '&quot;? This cannot be undone."')
 				+ '</div></td></tr>';
 		});
 		$('#db-fm-rows').html(h);
@@ -174,8 +187,7 @@ window.DBPages['devbench-files'] = function () {
 
 	/* Delete single */
 	$('#db-fm-rows').on('click', '.db-fm-delete', function () {
-		var path = $(this).data('path'), name = $(this).data('name');
-		if (!confirm('Delete "' + name + '"? This cannot be undone.')) return;
+		var path = $(this).data('path');
 		DBAjax('files', 'delete', { path: path }).done(function (r) {
 			if (r.success) { DBToast.show('Deleted', 'success'); load(cwd); }
 			else DBToast.show(r.data || 'Failed', 'error');
@@ -239,11 +251,35 @@ window.DBPages['devbench-files'] = function () {
 		var n = $('.db-fm-check:checked').length;
 		$('#db-fm-bulkbar').toggleClass('db-hidden', n === 0);
 		$('#db-fm-selcount').text(n + ' selected');
+		$('#db-fm-bulkdelete').attr('data-confirm', 'Delete ' + n + ' item(s)? This cannot be undone.');
 	}
+	/* Zip the current selection into the folder being browsed. */
+	$('#db-fm-bulkzip').on('click', function () {
+		var paths = $('.db-fm-check:checked').map(function () { return this.value; }).get();
+		if (!paths.length) return;
+
+		var suggested = 'devbench-archive';
+		modal('Create Archive',
+			'<div class="db-field"><label class="db-label">Archive name</label>'
+			+ '<input type="text" class="db-input" id="db-m-zip" value="' + DBEsc(suggested) + '"></div>'
+			+ '<div class="db-muted db-text-xs">' + paths.length + ' item(s) will be zipped into this folder. '
+			+ 'Folders are included with their contents.</div>',
+			'Create', function () {
+				var $ok = $('#db-fm-modal-ok').prop('disabled', true).text('Zipping…');
+				DBAjax('files', 'zip', { paths: paths, path: cwd, name: $('#db-m-zip').val() }).done(function (r) {
+					if (r.success) { DBToast.show('Created ' + r.data.name + ' (' + r.data.size + ')', 'success'); closeModal(); load(cwd); }
+					else DBToast.show(r.data || 'Failed', 'error');
+				}).fail(function () {
+					DBToast.show('Request failed', 'error');
+				}).always(function () {
+					$ok.prop('disabled', false).text('Create');
+				});
+			});
+	});
+
 	$('#db-fm-bulkdelete').on('click', function () {
 		var paths = $('.db-fm-check:checked').map(function () { return this.value; }).get();
 		if (!paths.length) return;
-		if (!confirm('Delete ' + paths.length + ' item(s)? This cannot be undone.')) return;
 		DBAjax('files', 'bulk_delete', { paths: paths }).done(function (r) {
 			if (r.success) { DBToast.show('Deleted ' + r.data.deleted + ' item(s)' + (r.data.errors.length ? ', ' + r.data.errors.length + ' failed' : ''), 'success'); load(cwd); }
 			else DBToast.show(r.data || 'Failed', 'error');

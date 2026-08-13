@@ -95,13 +95,17 @@ class DevBench_Tools {
 		// phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 
 		return array_map(
-			static function ( $row ) {
+			static function ( $row ) use ( $values ) {
 				return array(
-					'id'       => (int) $row['option_id'],
-					'name'     => $row['option_name'],
-					'size'     => strlen( $row['option_value'] ),
-					'autoload' => $row['autoload'],
-					'preview'  => mb_substr( $row['option_value'], 0, 120 ),
+					'id'   => (int) $row['option_id'],
+					'name' => $row['option_name'],
+					'size' => strlen( $row['option_value'] ),
+					// The raw column value, plus what it actually means. Since
+					// WordPress 6.6 "autoloaded" covers on/auto/auto-on as well
+					// as yes, so the UI must not test for a literal string.
+					'autoload'   => $row['autoload'],
+					'autoloaded' => in_array( $row['autoload'], $values, true ),
+					'preview'    => mb_substr( $row['option_value'], 0, 120 ),
 				);
 			},
 			(array) $rows

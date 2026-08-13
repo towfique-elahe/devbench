@@ -26,8 +26,15 @@
 	window.DBAjax = ajax;
 
 	/* ---------------- Escape ---------------- */
+	/* Quotes are escaped too: this is interpolated into attributes as often as
+	   into text, and a filename may legally contain " or '. */
 	function esc(s) {
-		return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+		return String(s == null ? '' : s)
+			.replace(/&/g, '&amp;')
+			.replace(/</g, '&lt;')
+			.replace(/>/g, '&gt;')
+			.replace(/"/g, '&quot;')
+			.replace(/'/g, '&#39;');
 	}
 	window.DBEsc = esc;
 
@@ -76,15 +83,48 @@
 		file: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/>',
 		edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
 		pin: '<path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>',
-		lock: '<rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>'
+		lock: '<rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+		download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>',
+		trash: '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>',
+		key: '<path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4"/><path d="m21 2-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/>',
+		/* Matches the PHP icon set: 'zap' means "execute" throughout DevBench. */
+		zap: '<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>',
+		check: '<path d="M20 6 9 17l-5-5"/>',
+		power: '<path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.77.04"/>',
+		list: '<line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/>'
 	};
+
+	/*
+	 * One icon-only table action.
+	 *
+	 * These carry no visible text, so the accessible name has to come from
+	 * aria-label — title alone is only a tooltip and is not reliably announced.
+	 * Centralised so every table gets that treatment by default.
+	 */
+	function action(tag, cls, iconName, label, attrs, size) {
+		size = size || 'xs';                       // 'xs' in table rows, 'sm' in card heads
+		return '<' + tag + ' class="db-btn db-btn-' + size + ' db-btn-icon ' + cls + '" ' + (attrs || '')
+			+ ' title="' + esc(label) + '" aria-label="' + esc(label) + '">'
+			+ icon(iconName, 'sm' === size ? 14 : 13) + '</' + tag + '>';
+	}
+	window.DBAction = action;
+
+	/* Nonce-signed URL for the File Manager download endpoint. */
+	function downloadUrl(path) {
+		return DevBench.download_url +
+			'&devbench_download=1' +
+			'&path=' + encodeURIComponent(path) +
+			'&_wpnonce=' + encodeURIComponent(DevBench.download_nonce);
+	}
+	window.DBDownloadUrl = downloadUrl;
 
 	function icon(name, size) {
 		size = size || 15;
 		const d = ICON_PATHS[name] || ICON_PATHS.file;
 		return '<svg xmlns="http://www.w3.org/2000/svg" width="' + size + '" height="' + size +
 			'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
-			'stroke-linecap="round" stroke-linejoin="round" class="db-icon">' + d + '</svg>';
+			'stroke-linecap="round" stroke-linejoin="round" class="db-icon" ' +
+			'aria-hidden="true" focusable="false">' + d + '</svg>';
 	}
 	window.DBIcon = icon;
 
@@ -420,6 +460,78 @@
 	});
 
 	/* ============================================================
+	   FILL THE WRAPPER
+	   ============================================================ */
+	/*
+	 * WordPress's own left admin menu is often taller than a DevBench page —
+	 * with DevBench's submenu expanded it exceeds the viewport by itself.
+	 * #wpwrap then stretches to fit the menu while .devbench-app stays capped
+	 * at --db-viewport, so the pinned sidebar bottoms out early and leaves a
+	 * band of bare page beneath it. The band is (menu height - app height),
+	 * which is why it differs per screen and disappears on the tall dashboard.
+	 *
+	 * This cannot be solved in CSS: #wpwrap is height:auto with only a
+	 * min-height, so a percentage height on our side resolves to auto. So
+	 * measure the menu and give the app a matching floor.
+	 */
+	function fitToWrapper() {
+		const app = document.querySelector('.devbench-app');
+		if (!app) return;
+
+		const menu = document.getElementById('adminmenuwrap');
+		app.style.minHeight = '';                       // release, then measure natural height
+		const needed = menu ? menu.offsetHeight : 0;
+
+		if (needed > app.offsetHeight) {
+			app.style.minHeight = needed + 'px';
+		}
+	}
+	window.DBFitToWrapper = fitToWrapper;
+
+	let fitPending;
+	function scheduleFit() {
+		clearTimeout(fitPending);
+		fitPending = setTimeout(fitToWrapper, 100);
+	}
+
+	$(window).on('resize', scheduleFit);
+	// Folding the admin menu changes its height without firing a resize.
+	$(document).on('wp-collapse-menu wp-menu-state-set', scheduleFit);
+
+	/* ============================================================
+	   DESTRUCTIVE ACTION GUARD
+	   ============================================================ */
+	/*
+	 * Every .db-btn-danger asks before it runs, as does anything carrying a
+	 * data-confirm message.
+	 *
+	 * Bound on document in the CAPTURE phase so it runs ahead of both jQuery's
+	 * delegated handlers (which listen on document as the event bubbles) and
+	 * any handler bound straight to the element — stopping propagation here
+	 * reaches both. Declining therefore cancels the action without each page
+	 * needing to remember to ask.
+	 *
+	 * A danger button that omits data-confirm still gets a generic prompt, so
+	 * the guarantee does not depend on anyone remembering to add one.
+	 */
+	const GENERIC_CONFIRM = 'This cannot be undone. Continue?';
+
+	document.addEventListener('click', function (e) {
+		const target = e.target;
+		if (!target || typeof target.closest !== 'function') return;
+
+		const el = target.closest('[data-confirm], .db-btn-danger');
+		if (!el || el.disabled) return;
+
+		const message = el.getAttribute('data-confirm') || GENERIC_CONFIRM;
+		if (!window.confirm(message)) {
+			e.preventDefault();
+			e.stopPropagation();
+			e.stopImmediatePropagation();
+		}
+	}, true);
+
+	/* ============================================================
 	   PAGE ROUTER
 	   ============================================================ */
 	window.DBPages = window.DBPages || {};
@@ -429,6 +541,7 @@
 		if (window.DBPages && typeof window.DBPages[page] === 'function') {
 			window.DBPages[page]();
 		}
+		fitToWrapper();
 	});
 
 })(jQuery);

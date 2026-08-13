@@ -14,7 +14,7 @@ require __DIR__ . '/_header.php';
 		<button class="db-btn db-btn-ghost db-btn-sm" id="db-cron-refresh"><?php DevBench_Helpers::the_icon('refresh',14); ?> Refresh</button>
 	</div>
 	<div class="db-card-body flush"><div class="db-table-wrap"><table class="db-table">
-		<thead><tr><th>Hook</th><th style="width:150px">Schedule</th><th style="width:200px">Next Run</th><th style="width:160px">Actions</th></tr></thead>
+		<thead><tr><th>Hook</th><th style="width:150px">Schedule</th><th style="width:200px">Next Run</th><th style="width:80px">Actions</th></tr></thead>
 		<tbody id="db-cron-rows"><tr><td colspan="4" style="padding:24px;text-align:center"><span class="db-spinner"></span></td></tr></tbody>
 	</table></div></div>
 </div>
@@ -31,10 +31,15 @@ window.DBPages['devbench-cron'] = function () {
 			var h = '';
 			r.data.forEach(function (e) {
 				var when = new Date(e.next * 1000).toLocaleString();
+				var hooked = 'data-hook="' + DBEsc(e.hook) + '"';
 				h += '<tr><td class="db-mono" style="font-weight:600">' + DBEsc(e.hook) + '</td>'
 					+ '<td><span class="db-badge db-badge-blue">' + DBEsc(e.schedule) + '</span><div class="db-muted" style="font-size:11px;margin-top:2px">' + DBEsc(e.interval) + '</div></td>'
 					+ '<td class="db-muted" style="font-size:12px">' + when + (e.overdue ? ' <span class="db-badge db-badge-amber">overdue</span>' : '') + '</td>'
-					+ '<td><div class="db-flex db-gap-8"><button class="db-btn db-btn-xs db-cron-run" data-hook="' + DBEsc(e.hook) + '">Run now</button><button class="db-btn db-btn-xs db-btn-danger db-cron-del" data-hook="' + DBEsc(e.hook) + '">Unschedule</button></div></td></tr>';
+					+ '<td><div class="db-flex db-gap-8">'
+					+ DBAction('button', 'db-cron-run', 'zap', 'Run ' + e.hook + ' now', hooked)
+					+ DBAction('button', 'db-cron-del db-btn-danger', 'trash', 'Unschedule ' + e.hook,
+						hooked + ' data-confirm="Unschedule ' + DBEsc(e.hook) + '?"')
+					+ '</div></td></tr>';
 			});
 			$('#db-cron-rows').html(h);
 		});
@@ -44,7 +49,6 @@ window.DBPages['devbench-cron'] = function () {
 		DBAjax('tools', 'cron_run', { hook: $(this).data('hook') }).done(function (r) { if (r.success) DBToast.show('Hook fired', 'success'); });
 	});
 	$('#db-cron-rows').on('click', '.db-cron-del', function () {
-		if (!confirm('Unschedule this event?')) return;
 		DBAjax('tools', 'cron_unschedule', { hook: $(this).data('hook') }).done(function (r) { if (r.success) { DBToast.show('Unscheduled', 'success'); load(); } });
 	});
 	load();

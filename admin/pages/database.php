@@ -8,7 +8,7 @@ require __DIR__ . '/_header.php';
 	<p>Browse tables, inspect structure, run SQL, and export data. Destructive statements (DROP/TRUNCATE) are blocked.</p>
 </div>
 
-<div class="db-grid" style="grid-template-columns:280px 1fr;gap:16px;align-items:start">
+<div class="db-grid" style="grid-template-columns:280px minmax(0, 1fr);gap:16px;align-items:start">
 	<!-- Table list -->
 	<div class="db-card db-mb-0">
 		<div class="db-card-head"><h3 class="db-card-title">Tables</h3></div>
@@ -46,7 +46,7 @@ window.DBPages['devbench-database'] = function () {
 		r.data.forEach(function (t) {
 			h += '<a href="#" class="db-nav-item db-db-table" data-table="' + DBEsc(t.name) + '" style="margin-bottom:1px">'
 				+ '<span style="flex:1;overflow:hidden;text-overflow:ellipsis" class="db-mono">' + DBEsc(t.name) + '</span>'
-				+ '<span class="db-badge db-badge-gray">' + t.rows + '</span></a>';
+				+ '<span class="db-badge db-badge-gray" title="' + t.rows + ' rows">' + Number(t.rows).toLocaleString() + '</span></a>';
 		});
 		$('#db-db-tables').html(h);
 	});
@@ -68,10 +68,10 @@ window.DBPages['devbench-database'] = function () {
 
 	function renderTable(d) {
 		var h = '<div class="db-card"><div class="db-card-head">'
-			+ '<h3 class="db-card-title"><span class="db-mono">' + DBEsc(current) + '</span> <span class="db-badge db-badge-gray">' + d.total + ' rows</span></h3>'
+			+ '<h3 class="db-card-title"><span class="db-mono">' + DBEsc(current) + '</span> <span class="db-badge db-badge-gray">' + Number(d.total).toLocaleString() + ' rows</span></h3>'
 			+ '<div class="db-flex db-gap-8">'
-			+ '<button class="db-btn db-btn-ghost db-btn-sm" id="db-db-structure">Structure</button>'
-			+ '<button class="db-btn db-btn-ghost db-btn-sm" id="db-db-export">Export SQL</button>'
+			+ DBAction('button', 'db-btn-ghost', 'list', 'Show structure of ' + current, 'id="db-db-structure"', 'sm')
+			+ DBAction('button', 'db-btn-ghost', 'download', 'Export ' + current + ' as SQL', 'id="db-db-export"', 'sm')
 			+ '</div></div><div class="db-card-body flush"><div class="db-table-wrap"><table class="db-table"><thead><tr>';
 		d.columns.forEach(function (c) { h += '<th>' + DBEsc(c) + '</th>'; });
 		h += '</tr></thead><tbody>';

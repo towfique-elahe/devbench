@@ -19,7 +19,7 @@ require __DIR__ . '/_header.php';
 		<button class="db-btn db-btn-primary db-btn-sm" id="db-cfg-add" <?php disabled( ! $devbench_writable ); ?>>+ Add Constant</button>
 	</div>
 	<div class="db-card-body flush"><div class="db-table-wrap"><table class="db-table">
-		<thead><tr><th>Name</th><th>Value</th><th style="width:90px">Type</th><th style="width:160px">Actions</th></tr></thead>
+		<thead><tr><th>Name</th><th>Value</th><th style="width:90px">Type</th><th style="width:80px">Actions</th></tr></thead>
 		<tbody id="db-cfg-rows"><tr><td colspan="4" style="padding:24px;text-align:center"><span class="db-spinner"></span></td></tr></tbody>
 	</table></div></div>
 </div>
@@ -44,6 +44,14 @@ require __DIR__ . '/_header.php';
 window.DBPages['devbench-config'] = function () {
 	var $ = jQuery, writable = <?php echo $devbench_writable ? 'true' : 'false'; ?>;
 
+	/* Why a row has no actions. role="img" + aria-label so the reason is
+	   announced — a bare icon in a span is invisible to assistive tech. */
+	function locked(reason) {
+		return '<span class="db-muted db-flex" role="img" style="height:25px;align-items:center"'
+			+ ' title="' + DBEsc(reason) + '" aria-label="' + DBEsc(reason) + '">'
+			+ DBIcon('lock', 13) + '</span>';
+	}
+
 	function load() {
 		DBAjax('extra', 'config_list').done(function (r) {
 			if (!r.success) return;
@@ -52,16 +60,24 @@ window.DBPages['devbench-config'] = function () {
 			r.data.forEach(function (c) {
 				var badge = c.type === 'bool' ? 'db-badge-accent' : (c.type === 'int' ? 'db-badge-blue' : 'db-badge-gray');
 				var vColor = c.value === 'true' ? 'color:var(--db-green)' : (c.value === 'false' ? 'color:var(--db-red)' : '');
+				var named = 'data-name="' + DBEsc(c.name) + '"';
+				var actions;
+
+				if (c.protected) {
+					actions = locked('Protected — keys, salts and passwords cannot be edited from DevBench');
+				} else if (writable) {
+					actions = DBAction('button', 'db-cfg-edit', 'edit', 'Edit ' + c.name,
+							named + ' data-value="' + DBEsc(c.value) + '" data-type="' + DBEsc(c.type) + '"')
+						+ DBAction('button', 'db-cfg-del db-btn-danger', 'trash', 'Delete ' + c.name,
+							named + ' data-confirm="Delete constant ' + DBEsc(c.name) + ' from wp-config.php?"');
+				} else {
+					actions = locked('Read-only — wp-config.php cannot be written');
+				}
+
 				h += '<tr><td class="db-mono" style="font-weight:600">' + DBEsc(c.name) + '</td>'
 					+ '<td class="db-mono" style="' + vColor + ';max-width:360px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + DBEsc(c.value) + '</td>'
-					+ '<td><span class="db-badge ' + badge + '">' + c.type + '</span></td>'
-					+ '<td><div class="db-flex db-gap-8">'
-					+ (c.protected
-						? '<span class="db-muted" style="font-size:12px">protected</span>'
-						: (writable
-							? '<button class="db-btn db-btn-xs db-cfg-edit" data-name="' + DBEsc(c.name) + '" data-value="' + DBEsc(c.value) + '" data-type="' + c.type + '">Edit</button><button class="db-btn db-btn-xs db-btn-danger db-cfg-del" data-name="' + DBEsc(c.name) + '">Delete</button>'
-							: '<span class="db-muted" style="font-size:12px">read-only</span>'))
-					+ '</div></td></tr>';
+					+ '<td><span class="db-badge ' + badge + '">' + DBEsc(c.type) + '</span></td>'
+					+ '<td><div class="db-flex db-gap-8">' + actions + '</div></td></tr>';
 			});
 			$('#db-cfg-rows').html(h);
 		});
@@ -80,7 +96,6 @@ window.DBPages['devbench-config'] = function () {
 	});
 	$('#db-cfg-rows').on('click', '.db-cfg-del', function () {
 		var name = $(this).data('name');
-		if (!confirm('Delete constant ' + name + '?')) return;
 		DBAjax('extra', 'config_delete', { name: name }).done(function (r) { if (r.success) { DBToast.show('Deleted', 'success'); load(); } else DBToast.show(r.data || 'Failed', 'error'); });
 	});
 	$('#db-cfg-cancel').on('click', function () { $('#db-cfg-modal').removeClass('open'); });

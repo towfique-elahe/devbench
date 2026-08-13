@@ -59,7 +59,7 @@ $devbench_descriptions = array(
 			<div class="db-flex db-gap-8">
 				<button class="db-btn db-btn-ghost db-btn-sm" id="db-log-refresh"><?php DevBench_Helpers::the_icon('refresh',14); ?> Refresh</button>
 				<button class="db-btn db-btn-ghost db-btn-sm" id="db-log-copy"><?php DevBench_Helpers::the_icon('copy',14); ?> Copy</button>
-				<button class="db-btn db-btn-danger db-btn-sm" id="db-log-clear">Clear</button>
+				<button class="db-btn db-btn-danger db-btn-sm" id="db-log-clear" data-confirm="<?php esc_attr_e( 'Clear the debug log? The file contents will be erased.', 'devbench' ); ?>">Clear</button>
 			</div>
 		</div>
 		<div class="db-card-body flush">
@@ -98,7 +98,6 @@ window.DBPages['devbench-debug'] = function () {
 		DBCopy(text, '(log is empty)');
 	});
 	$('#db-log-clear').on('click', function () {
-		if (!confirm('Clear the debug log?')) return;
 		DBAjax('debug', 'clear_log').done(function (r) {
 			if (r.success) { DBToast.show('Log cleared', 'success'); loadLog(); }
 			else DBToast.show(r.data || 'Failed', 'error');

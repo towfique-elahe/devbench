@@ -4,7 +4,7 @@
 
 DevBench brings the tools you actually reach for during development — debugging, file editing, database browsing, search, mail testing, and environment auditing — into a single clean, card-based admin interface. It ships with a calm, neutral design system that defaults to **dark mode** (with a one-click light/dark toggle), so it feels right at home for development work.
 
-![Version](https://img.shields.io/badge/version-1.2.0-6366f1) ![WordPress](https://img.shields.io/badge/WordPress-6.6%2B-blue) ![PHP](https://img.shields.io/badge/PHP-7.4%2B-777bb4) ![License](https://img.shields.io/badge/license-GPL--2.0%2B-green)
+![Version](https://img.shields.io/badge/version-1.3.0-6366f1) ![WordPress](https://img.shields.io/badge/WordPress-6.6%2B-blue) ![PHP](https://img.shields.io/badge/PHP-7.4%2B-777bb4) ![License](https://img.shields.io/badge/license-GPL--2.0%2B-green)
 
 ---
 
@@ -15,7 +15,7 @@ DevBench brings the tools you actually reach for during development — debuggin
 - **Search & Locator** — Full-text search across your installation's files (with extension filters) or scan database tables column-by-column, with a **live progress bar** that reports parsing percentage as it works through files/tables in batches. Every result links straight into the editor at the matching line.
 - **Debug Manager** — Toggle `WP_DEBUG`, `WP_DEBUG_LOG`, `WP_DEBUG_DISPLAY`, `SCRIPT_DEBUG`, and `SAVEQUERIES` with switches that rewrite `wp-config.php`, plus a live `debug.log` viewer with one-click **copy**.
 - **Log Analyzer** — Parses `debug.log`, treats each multi-line error (fatal + full stack trace) as a single grouped entry, counts occurrences, and sorts by frequency so you fix the loudest problems first. Filter by type or keyword, and copy any entry (with its trace) to the clipboard.
-- **File Manager** — Browse, edit, create, rename, chmod, upload (drag & drop), and bulk-delete files. The chmod dialog includes a **permission reference** (click a common mode to apply it). Includes a full-screen code editor with line numbers, find, go-to-line, auto-indent, bracket matching, and **session version control** (snapshot / restore-and-save / line-by-line diff).
+- **File Manager** — Browse, edit, create, rename, chmod, upload (drag & drop), download, zip, and bulk-delete files. The chmod dialog includes a **permission reference** (click a common mode to apply it). Includes a full-screen code editor with line numbers, find, go-to-line, auto-indent, bracket matching, and **session version control** (snapshot / restore-and-save / line-by-line diff).
 - **Database Manager** — Browse tables with pagination, inspect structure, run SQL (destructive statements blocked), and export any table to `.sql`.
 - **Snippet Runner** — Execute PHP in the full WordPress context with captured output, error reporting, and a library of handy presets.
 
@@ -28,7 +28,8 @@ DevBench brings the tools you actually reach for during development — debuggin
 - **Mail Catcher** — Intercept all outgoing `wp_mail()` so nothing is actually sent; inspect subject, recipients, headers, and body.
 
 ### Utilities & Environment
-- **Quick Notes** — A persistent scratchpad stored in your database, with pinning.
+- **Quick Notes** — A persistent scratchpad stored in your database, with pinning and per-note delete.
+- **Report a Bug** — Send a problem report to the plugin author, with an optional environment summary rendered in full so you can read exactly what gets attached.
 - **Environment Checker** — 20+ best-practice checks across PHP, WordPress, security, the database, and extensions, with pass/warn/fail scoring and suggested fixes.
 - **PHP Info** — The full `phpinfo()` report in an isolated frame.
 - **System Info** — A complete technical overview of WordPress, PHP, the database, the theme, and the server.
@@ -66,6 +67,7 @@ DevBench is a powerful tool intended for **development and staging environments*
 - `DROP DATABASE`, `DROP TABLE` and `TRUNCATE` are blocked in the SQL runner.
 - Uploads are limited to an extension allowlist and rejected when the file contents do not match the extension.
 - Keys, salts and passwords in `wp-config.php` are masked in the Config Editor and cannot be edited or deleted through it.
+- No external requests. The only outbound data is the **Report a Bug** form, which you compose and submit yourself; its environment block is shown in full beforehand and contains no credentials.
 
 ---
 
@@ -84,27 +86,48 @@ composer require --dev squizlabs/php_codesniffer wp-coding-standards/wpcs phpcom
 
 ## Changelog
 
-### 1.2.0
+### 1.3.0
 
-**Security & hardening**
-- All file, directory and permission operations now go through the WordPress Filesystem API.
-- File and `wp-config.php` writes respect `DISALLOW_FILE_EDIT` and `DISALLOW_FILE_MODS`, with a clear in-app notice when they are set.
-- Multisite now requires `manage_network_options` rather than `manage_options`.
-- Table and column identifiers use `$wpdb->prepare()` `%i` placeholders.
-- Uploads are validated with `wp_check_filetype_and_ext()`.
-- Every AJAX handler re-verifies the nonce and capability; all request input is unslashed before sanitizing.
-- Every dynamic value printed by the admin templates is escaped at output.
-- Keys, salts and passwords are masked in the Config Editor and are no longer editable through it.
+**New features**
+- **File Manager: download** any file, streamed rather than buffered so large files work.
+- **File Manager: zip** the current selection into the folder you're browsing — folders included recursively, via `ZipArchive` where available and the `PclZip` library WordPress already bundles otherwise.
+- **Quick Notes: delete** a note from the list.
+- **Report a Bug** screen — emails the plugin author via the site's own mail setup. Bypasses the Mail Catcher, which would otherwise swallow it.
+- **Every destructive action confirms** before it runs. Transient and caught-mail deletion previously fired on a single click.
+
+**Security**
+- All file, directory and permission operations go through the WordPress Filesystem API instead of direct PHP calls.
+- File and `wp-config.php` writes respect `DISALLOW_FILE_EDIT` and `DISALLOW_FILE_MODS`, with an in-app notice when either is set.
+- Multisite requires `manage_network_options` rather than `manage_options`.
+- Table and column identifiers reach the database through `$wpdb->prepare()` `%i` placeholders; table names are validated against `SHOW TABLES` first.
+- Path traversal hardened: `..` segments are rejected outright and the resolved real path must sit inside `ABSPATH`, so symlinks can't escape either.
+- Uploads validated with `wp_check_filetype_and_ext()` and `is_uploaded_file()`.
+- Downloads are always served as an attachment with `X-Content-Type-Options: nosniff`, so an `.html` or `.svg` from inside the install can't execute on the site's own origin.
+- Fixed an escaping gap where a filename containing a quote could break out of an HTML attribute.
+- **Removed the Google Fonts request** — the plugin now makes no external requests at all and uses system font stacks.
+- Keys, salts and passwords are masked in the Config Editor and can't be edited or deleted through it.
+- Every AJAX handler re-verifies nonce and capability; all input is unslashed before sanitizing; all template output is escaped.
 
 **Fixes**
 - **Mail Catcher recorded nothing.** It hooked `pre_wp_mail` to block delivery and `wp_mail` to capture, but the former short-circuits before the latter runs — so mail was suppressed and never logged. Both now happen in one callback.
-- **Options Manager and autoload reporting were wrong on WordPress 6.6+**, where the `autoload` column gained `on`/`off`/`auto` values alongside `yes`/`no`.
-- Table exports are now read in chunks, so large tables no longer have to fit in memory.
+- **Database Manager reported 0 rows for every table.** `SHOW TABLE STATUS` returns an estimate for InnoDB, and on a small or recent database that estimate is 0. Counts now come from `COUNT(*)` and match the browse header.
+- **Options Manager mislabelled autoloaded options on WordPress 6.6+**, where the `autoload` column gained `on`/`off`/`auto` alongside `yes`/`no`. Both the filter and the badge now read the vocabulary from core.
+- Table exports are read in chunks, so a large table no longer has to fit in memory.
+- Fixed viewport-height maths in wp-admin — the layout accounts for the admin bar and the reserved footer space instead of adding ~97px of dead scroll to every screen.
+- Fixed a background seam under short pages where WordPress's wrapper showed through beneath the app.
+- File Manager breadcrumb segments are real links again — they had no `href`, so no pointer cursor, no tab stop and no keyboard activation.
+- Quick Notes: the title aligns with the note body, and deleting the open note no longer lets a later save recreate it.
+
+**Design**
+- Redesigned around a **monochrome, shadcn-style neutral palette**: no brand hue, status expressed as contrast weight rather than colour, destructive actions the single retained accent. Every foreground/background pair was measured and meets WCAG AA in both themes.
+- The sidebar is a **rounded floating panel** pinned in place while you scroll, with the light/dark switch moved up to the brand row.
+- Row actions across every screen are **icon buttons**, each with an explicit accessible label naming its target.
+- WordPress's admin footer is hidden on DevBench screens and the space it reserved is reclaimed.
 
 **Housekeeping**
-- Added `readme.txt`, `uninstall.php`, `.gitignore`, `.distignore` and a `phpcs.xml` ruleset.
+- Added `readme.txt`, `uninstall.php`, `.gitignore`, `.distignore` and a `phpcs.xml` ruleset matching the WordPress.org Plugin Check.
 - Report-screen data gathering moved out of the templates into `DevBench_Reports`.
-- Removed dead duplicate search code paths and de-duplicated the clipboard helper.
+- Removed dead duplicate search code and de-duplicated the clipboard helper.
 - Raised the minimum WordPress version to 6.6.
 
 ### 1.1.0

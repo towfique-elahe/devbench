@@ -3,7 +3,7 @@
  * Plugin Name:       DevBench
  * Plugin URI:        https://github.com/towfique-elahe/devbench
  * Description:       An all-in-one developer workbench: debug tools, file manager, database browser, search, mail catcher and environment checks.
- * Version:           1.2.0
+ * Version:           1.3.0
  * Author:            Towfique Elahe
  * Author URI:        https://towfiqueelahe.com
  * License:           GPLv2 or later
@@ -17,7 +17,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'DEVBENCH_VERSION', '1.2.0' );
+define( 'DEVBENCH_VERSION', '1.3.0' );
 define( 'DEVBENCH_FILE', __FILE__ );
 define( 'DEVBENCH_PATH', plugin_dir_path( __FILE__ ) );
 define( 'DEVBENCH_URL', plugin_dir_url( __FILE__ ) );
