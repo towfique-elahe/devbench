@@ -1,5 +1,5 @@
 === DevBench ===
-Contributors: towfiqueelahe
+Contributors: towfiqueelaheofficial
 Tags: developer, debug, database, file manager, log
 Requires at least: 6.6
 Tested up to: 7.0
