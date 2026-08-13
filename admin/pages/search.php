@@ -1,12 +1,13 @@
 <?php
 defined( 'ABSPATH' ) || exit;
-$page_id = 'devbench-search';
-global $wpdb;
-$tables = $wpdb->get_col( 'SHOW TABLES' );
-include __DIR__ . '/_header.php';
+$devbench_page_id    = 'devbench-search';
+$devbench_tables     = DevBench_Database::table_names();
+$devbench_extensions = array( 'php', 'js', 'css', 'html', 'json', 'txt', 'md', 'sql', 'env' );
+
+require __DIR__ . '/_header.php';
 ?>
 <div class="db-page-head">
-    <h1><?php echo DevBench_Helpers::icon('search',22); ?> Search &amp; Locator</h1>
+    <h1><?php DevBench_Helpers::the_icon('search',22); ?> Search &amp; Locator</h1>
     <p>Search file contents across your install or scan database tables — then jump straight into the editor.</p>
 </div>
 
@@ -19,10 +20,10 @@ include __DIR__ . '/_header.php';
 
         <div class="db-flex db-gap-8 db-wrap">
             <div class="db-input-icon" style="flex:1;min-width:240px">
-                <span class="db-input-icon-lead"><?php echo DevBench_Helpers::icon('search',16); ?></span>
+                <span class="db-input-icon-lead"><?php DevBench_Helpers::the_icon('search',16); ?></span>
                 <input type="text" class="db-input" id="db-search-kw" placeholder="Enter a keyword (min 2 chars)…">
             </div>
-            <button class="db-btn db-btn-primary" id="db-search-go"><?php echo DevBench_Helpers::icon('search',15); ?>
+            <button class="db-btn db-btn-primary" id="db-search-go"><?php DevBench_Helpers::the_icon('search',15); ?>
                 Search</button>
         </div>
 
@@ -30,9 +31,10 @@ include __DIR__ . '/_header.php';
         <div id="db-search-files-opts" class="db-mt-12">
             <label class="db-label">Filter by extension (leave empty for common code files)</label>
             <div class="db-flex db-wrap db-gap-8">
-                <?php foreach ( [ 'php','js','css','html','json','txt','md','sql','env' ] as $e ) : ?>
+                <?php foreach ( $devbench_extensions as $devbench_extension ) : ?>
                 <label class="db-flex db-gap-8" style="font-size:13px;cursor:pointer"><input type="checkbox"
-                        class="db-ext" value="<?php echo $e; ?>"> .<?php echo $e; ?></label>
+                        class="db-ext" value="<?php echo esc_attr( $devbench_extension ); ?>">
+                    .<?php echo esc_html( $devbench_extension ); ?></label>
                 <?php endforeach; ?>
             </div>
         </div>
@@ -41,10 +43,10 @@ include __DIR__ . '/_header.php';
         <div id="db-search-db-opts" class="db-mt-12 db-hidden">
             <label class="db-label">Tables to scan (leave empty for all)</label>
             <div class="db-flex db-wrap db-gap-8" style="max-height:120px;overflow-y:auto">
-                <?php foreach ( $tables as $t ) : ?>
+                <?php foreach ( $devbench_tables as $devbench_table ) : ?>
                 <label class="db-flex db-gap-8" style="font-size:12px;cursor:pointer"><input type="checkbox"
-                        class="db-tbl" value="<?php echo esc_attr($t); ?>"> <span
-                        class="db-mono"><?php echo esc_html($t); ?></span></label>
+                        class="db-tbl" value="<?php echo esc_attr( $devbench_table ); ?>"> <span
+                        class="db-mono"><?php echo esc_html( $devbench_table ); ?></span></label>
                 <?php endforeach; ?>
             </div>
         </div>
@@ -53,7 +55,7 @@ include __DIR__ . '/_header.php';
 
 <div id="db-search-results"></div>
 
-<?php include __DIR__ . '/_editor_modal.php'; ?>
+<?php require __DIR__ . '/_editor_modal.php'; ?>
 
 <script>
 window.DBPages['devbench-search'] = function() {
@@ -217,7 +219,7 @@ window.DBPages['devbench-search'] = function() {
             h += '<div class="db-card"><div class="db-card-head"><h3 class="db-card-title">' + DBIcon('database', 16) +
                 ' <span class="db-mono">' + DBEsc(t.table) +
                 '</span> <span class="db-badge db-badge-accent">' + t.total + ' total</span></h3>' +
-                '<a class="db-btn db-btn-ghost db-btn-sm" href="<?php echo admin_url('admin.php?page=devbench-database'); ?>">Open table →</a></div><div class="db-card-body flush">';
+                '<a class="db-btn db-btn-ghost db-btn-sm" href="<?php echo esc_url( admin_url('admin.php?page=devbench-database') ); ?>">Open table →</a></div><div class="db-card-body flush">';
             t.hits.forEach(function(row) {
                 h += '<div style="padding:9px 16px;border-bottom:1px solid var(--db-border)"><div class="db-muted db-mono" style="font-size:11px;margin-bottom:4px">id: ' +
                     DBEsc(row.id) + '</div>';
@@ -252,4 +254,4 @@ window.DBPages['devbench-search'] = function() {
 };
 </script>
 
-<?php include __DIR__ . '/_footer.php'; ?>
+<?php require __DIR__ . '/_footer.php'; ?>

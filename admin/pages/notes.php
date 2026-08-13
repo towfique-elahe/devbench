@@ -1,10 +1,10 @@
 <?php
 defined( 'ABSPATH' ) || exit;
-$page_id = 'devbench-notes';
-include __DIR__ . '/_header.php';
+$devbench_page_id = 'devbench-notes';
+require __DIR__ . '/_header.php';
 ?>
 <div class="db-page-head">
-	<h1><?php echo DevBench_Helpers::icon('note',22); ?> Quick Notes</h1>
+	<h1><?php DevBench_Helpers::the_icon('note',22); ?> Quick Notes</h1>
 	<p>A persistent scratchpad for snippets, credentials reminders, and to-dos — stored in your database.</p>
 </div>
 
@@ -80,4 +80,4 @@ window.DBPages['devbench-notes'] = function () {
 };
 </script>
 
-<?php include __DIR__ . '/_footer.php'; ?>
+<?php require __DIR__ . '/_footer.php'; ?>

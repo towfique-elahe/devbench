@@ -1,20 +1,20 @@
 <?php
 defined( 'ABSPATH' ) || exit;
-$page_id = 'devbench-snippet';
-include __DIR__ . '/_header.php';
+$devbench_page_id = 'devbench-snippet';
+require __DIR__ . '/_header.php';
 ?>
 <div class="db-page-head">
-	<h1><?php echo DevBench_Helpers::icon('zap',22); ?> Snippet Runner</h1>
+	<h1><?php DevBench_Helpers::the_icon('zap',22); ?> Snippet Runner</h1>
 	<p>Execute PHP in the full WordPress context. Output and errors are captured below.</p>
 </div>
 
-<div class="db-alert db-alert-warn"><?php echo DevBench_Helpers::icon('info',17); ?><div>Code runs immediately with full privileges. Only run snippets you understand.</div></div>
+<div class="db-alert db-alert-warn"><?php DevBench_Helpers::the_icon('info',17); ?><div>Code runs immediately with full privileges. Only run snippets you understand.</div></div>
 
 <div class="db-grid db-grid-2" style="align-items:start">
 	<div class="db-card db-mb-0">
 		<div class="db-card-head">
-			<h3 class="db-card-title"><?php echo DevBench_Helpers::icon('code',16); ?> PHP Code</h3>
-			<button class="db-btn db-btn-primary db-btn-sm" id="db-snip-run"><?php echo DevBench_Helpers::icon('zap',14); ?> Run</button>
+			<h3 class="db-card-title"><?php DevBench_Helpers::the_icon('code',16); ?> PHP Code</h3>
+			<button class="db-btn db-btn-primary db-btn-sm" id="db-snip-run"><?php DevBench_Helpers::the_icon('zap',14); ?> Run</button>
 		</div>
 		<div class="db-card-body">
 			<textarea class="db-textarea mono" id="db-snip-code" rows="16" placeholder="// e.g. echo get_bloginfo('name');" spellcheck="false"></textarea>
@@ -27,7 +27,7 @@ include __DIR__ . '/_header.php';
 	</div>
 
 	<div class="db-card db-mb-0">
-		<div class="db-card-head"><h3 class="db-card-title"><?php echo DevBench_Helpers::icon('terminal',16); ?> Output</h3></div>
+		<div class="db-card-head"><h3 class="db-card-title"><?php DevBench_Helpers::the_icon('terminal',16); ?> Output</h3></div>
 		<div class="db-card-body flush">
 			<pre class="db-code" id="db-snip-out" style="margin:0;border-radius:0;min-height:300px">Ready.</pre>
 			<div id="db-snip-errors"></div>
@@ -73,4 +73,4 @@ window.DBPages['devbench-snippet'] = function () {
 };
 </script>
 
-<?php include __DIR__ . '/_footer.php'; ?>
+<?php require __DIR__ . '/_footer.php'; ?>

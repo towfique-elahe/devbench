@@ -1,11 +1,11 @@
 <?php
 defined( 'ABSPATH' ) || exit;
-$page_id = 'devbench-mail';
-$on = (bool) get_option( 'devbench_mail_catcher', false );
-include __DIR__ . '/_header.php';
+$devbench_page_id = 'devbench-mail';
+$devbench_mail_on = (bool) get_option( 'devbench_mail_catcher', false );
+require __DIR__ . '/_header.php';
 ?>
 <div class="db-page-head">
-	<h1><?php echo DevBench_Helpers::icon('mail',22); ?> Mail Catcher</h1>
+	<h1><?php DevBench_Helpers::the_icon('mail',22); ?> Mail Catcher</h1>
 	<p>Intercept all outgoing <code>wp_mail()</code> calls so nothing is actually sent — perfect for testing.</p>
 </div>
 
@@ -16,16 +16,16 @@ include __DIR__ . '/_header.php';
 				<div style="font-weight:600">Catch outgoing mail</div>
 				<div class="db-muted" style="font-size:12.5px;margin-top:2px">When enabled, emails are captured below instead of being delivered.</div>
 			</div>
-			<label class="db-switch"><input type="checkbox" id="db-mail-toggle" <?php checked( $on ); ?>><span class="db-switch-track"></span></label>
+			<label class="db-switch"><input type="checkbox" id="db-mail-toggle" <?php checked( $devbench_mail_on ); ?>><span class="db-switch-track"></span></label>
 		</div>
 	</div>
 </div>
 
 <div class="db-card db-mb-0">
 	<div class="db-card-head">
-		<h3 class="db-card-title"><?php echo DevBench_Helpers::icon('mail',16); ?> Inbox <span class="db-badge db-badge-gray" id="db-mail-count">—</span></h3>
+		<h3 class="db-card-title"><?php DevBench_Helpers::the_icon('mail',16); ?> Inbox <span class="db-badge db-badge-gray" id="db-mail-count">—</span></h3>
 		<div class="db-flex db-gap-8">
-			<button class="db-btn db-btn-ghost db-btn-sm" id="db-mail-refresh"><?php echo DevBench_Helpers::icon('refresh',14); ?> Refresh</button>
+			<button class="db-btn db-btn-ghost db-btn-sm" id="db-mail-refresh"><?php DevBench_Helpers::the_icon('refresh',14); ?> Refresh</button>
 			<button class="db-btn db-btn-danger db-btn-sm" id="db-mail-clear">Clear All</button>
 		</div>
 	</div>
@@ -45,7 +45,7 @@ window.DBPages['devbench-mail'] = function () {
 		DBAjax('extra', 'mail_list').done(function (r) {
 			if (!r.success) return;
 			$('#db-mail-count').text(r.data.length);
-			if (!r.data.length) { $('#db-mail-list').html('<div class="db-empty"><div class="db-empty-icon"><?php echo DevBench_Helpers::icon('mail',48); ?></div><h3>Inbox empty</h3><p>Caught emails will appear here when the catcher is active.</p></div>'); return; }
+			if (!r.data.length) { $('#db-mail-list').html('<div class="db-empty"><div class="db-empty-icon"><?php DevBench_Helpers::the_icon('mail',48); ?></div><h3>Inbox empty</h3><p>Caught emails will appear here when the catcher is active.</p></div>'); return; }
 			var h = '';
 			r.data.forEach(function (m) {
 				h += '<div style="border-bottom:1px solid var(--db-border)">'
@@ -77,4 +77,4 @@ window.DBPages['devbench-mail'] = function () {
 };
 </script>
 
-<?php include __DIR__ . '/_footer.php'; ?>
+<?php require __DIR__ . '/_footer.php'; ?>

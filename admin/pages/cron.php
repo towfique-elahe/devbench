@@ -1,17 +1,17 @@
 <?php
 defined( 'ABSPATH' ) || exit;
-$page_id = 'devbench-cron';
-include __DIR__ . '/_header.php';
+$devbench_page_id = 'devbench-cron';
+require __DIR__ . '/_header.php';
 ?>
 <div class="db-page-head">
-	<h1><?php echo DevBench_Helpers::icon('repeat',22); ?> Cron Manager</h1>
+	<h1><?php DevBench_Helpers::the_icon('repeat',22); ?> Cron Manager</h1>
 	<p>View scheduled WordPress cron events, run them on demand, or unschedule them.</p>
 </div>
 
 <div class="db-card">
 	<div class="db-card-head">
-		<h3 class="db-card-title"><?php echo DevBench_Helpers::icon('clock',16); ?> Scheduled Events <span class="db-badge db-badge-gray" id="db-cron-count">—</span></h3>
-		<button class="db-btn db-btn-ghost db-btn-sm" id="db-cron-refresh"><?php echo DevBench_Helpers::icon('refresh',14); ?> Refresh</button>
+		<h3 class="db-card-title"><?php DevBench_Helpers::the_icon('clock',16); ?> Scheduled Events <span class="db-badge db-badge-gray" id="db-cron-count">—</span></h3>
+		<button class="db-btn db-btn-ghost db-btn-sm" id="db-cron-refresh"><?php DevBench_Helpers::the_icon('refresh',14); ?> Refresh</button>
 	</div>
 	<div class="db-card-body flush"><div class="db-table-wrap"><table class="db-table">
 		<thead><tr><th>Hook</th><th style="width:150px">Schedule</th><th style="width:200px">Next Run</th><th style="width:160px">Actions</th></tr></thead>
@@ -51,4 +51,4 @@ window.DBPages['devbench-cron'] = function () {
 };
 </script>
 
-<?php include __DIR__ . '/_footer.php'; ?>
+<?php require __DIR__ . '/_footer.php'; ?>

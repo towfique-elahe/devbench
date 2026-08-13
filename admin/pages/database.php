@@ -1,10 +1,10 @@
 <?php
 defined( 'ABSPATH' ) || exit;
-$page_id = 'devbench-database';
-include __DIR__ . '/_header.php';
+$devbench_page_id = 'devbench-database';
+require __DIR__ . '/_header.php';
 ?>
 <div class="db-page-head">
-	<h1><?php echo DevBench_Helpers::icon('database',22); ?> Database Manager</h1>
+	<h1><?php DevBench_Helpers::the_icon('database',22); ?> Database Manager</h1>
 	<p>Browse tables, inspect structure, run SQL, and export data. Destructive statements (DROP/TRUNCATE) are blocked.</p>
 </div>
 
@@ -21,12 +21,12 @@ include __DIR__ . '/_header.php';
 	<div style="min-width:0">
 		<div class="db-card">
 			<div class="db-card-head">
-				<h3 class="db-card-title"><?php echo DevBench_Helpers::icon('terminal',16); ?> SQL Query</h3>
+				<h3 class="db-card-title"><?php DevBench_Helpers::the_icon('terminal',16); ?> SQL Query</h3>
 			</div>
 			<div class="db-card-body">
 				<textarea class="db-textarea mono" id="db-db-sql" rows="3" placeholder="SELECT * FROM wp_options LIMIT 10"></textarea>
 				<div class="db-flex db-gap-8 db-mt-12">
-					<button class="db-btn db-btn-primary" id="db-db-run"><?php echo DevBench_Helpers::icon('zap',15); ?> Run Query</button>
+					<button class="db-btn db-btn-primary" id="db-db-run"><?php DevBench_Helpers::the_icon('zap',15); ?> Run Query</button>
 					<span class="db-muted" style="font-size:12px;align-self:center"><kbd>Ctrl</kbd>+<kbd>Enter</kbd> to run</span>
 				</div>
 			</div>
@@ -150,4 +150,4 @@ window.DBPages['devbench-database'] = function () {
 };
 </script>
 
-<?php include __DIR__ . '/_footer.php'; ?>
+<?php require __DIR__ . '/_footer.php'; ?>

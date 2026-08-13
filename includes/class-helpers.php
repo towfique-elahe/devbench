@@ -1,31 +1,101 @@
 <?php
+/**
+ * Shared helpers: capability gates, path safety, wp-config rewriting and the
+ * inline SVG icon set.
+ *
+ * @package DevBench
+ */
+
 defined( 'ABSPATH' ) || exit;
 
 class DevBench_Helpers {
 
+	/* ---------------- Capability gates ---------------- */
+
+	/**
+	 * The capability required to use DevBench at all.
+	 *
+	 * On multisite the tools reach files and tables shared by the whole
+	 * network, so a single-site administrator is not enough.
+	 */
+	public static function capability() {
+		return is_multisite() ? 'manage_network_options' : 'manage_options';
+	}
+
+	/** Whether the current user may open DevBench. */
+	public static function can_manage() {
+		return current_user_can( self::capability() );
+	}
+
+	/**
+	 * Whether write operations (file edits, wp-config changes, PHP execution)
+	 * are permitted. Honours the standard WordPress lock-down constants.
+	 */
+	public static function can_write() {
+		if ( defined( 'DISALLOW_FILE_EDIT' ) && DISALLOW_FILE_EDIT ) {
+			return false;
+		}
+		if ( defined( 'DISALLOW_FILE_MODS' ) && DISALLOW_FILE_MODS ) {
+			return false;
+		}
+		return self::can_manage();
+	}
+
+	/** WP_Error explaining why a write was refused. */
+	public static function write_blocked() {
+		return new WP_Error(
+			'devbench_write_blocked',
+			__( 'File and configuration changes are disabled by DISALLOW_FILE_EDIT or DISALLOW_FILE_MODS in wp-config.php.', 'devbench' )
+		);
+	}
+
+	/** Human-readable reason writes are off, or '' when they are allowed. */
+	public static function write_blocked_reason() {
+		if ( defined( 'DISALLOW_FILE_EDIT' ) && DISALLOW_FILE_EDIT ) {
+			return 'DISALLOW_FILE_EDIT';
+		}
+		if ( defined( 'DISALLOW_FILE_MODS' ) && DISALLOW_FILE_MODS ) {
+			return 'DISALLOW_FILE_MODS';
+		}
+		return '';
+	}
+
+	/* ---------------- Formatting ---------------- */
+
 	/** Human-readable file size. */
 	public static function filesize( $bytes ) {
 		$bytes = (float) $bytes;
-		if ( $bytes <= 0 ) return '0 B';
-		$units = [ 'B', 'KB', 'MB', 'GB', 'TB' ];
-		$i = (int) floor( log( $bytes, 1024 ) );
-		$i = min( $i, count( $units ) - 1 );
+		if ( $bytes <= 0 ) {
+			return '0 B';
+		}
+		$units = array( 'B', 'KB', 'MB', 'GB', 'TB' );
+		$i     = (int) floor( log( $bytes, 1024 ) );
+		$i     = min( $i, count( $units ) - 1 );
 		return round( $bytes / pow( 1024, $i ), 2 ) . ' ' . $units[ $i ];
 	}
 
 	/** Convert php.ini shorthand (128M, 1G) to bytes. */
 	public static function to_bytes( $val ) {
-		$val  = trim( (string) $val );
-		if ( $val === '' ) return 0;
+		$val = trim( (string) $val );
+		if ( '' === $val ) {
+			return 0;
+		}
 		$last = strtolower( $val[ strlen( $val ) - 1 ] );
 		$num  = (float) $val;
 		switch ( $last ) {
-			case 'g': $num *= 1024;
-			case 'm': $num *= 1024;
-			case 'k': $num *= 1024;
+			case 'g':
+				$num *= 1024;
+				// Fall through.
+			case 'm':
+				$num *= 1024;
+				// Fall through.
+			case 'k':
+				$num *= 1024;
 		}
 		return (int) $num;
 	}
+
+	/* ---------------- wp-config.php ---------------- */
 
 	/** Locate wp-config.php (standard location, then one level up). */
 	public static function wp_config_path() {
@@ -39,17 +109,32 @@ class DevBench_Helpers {
 		return '';
 	}
 
+	/** Whether wp-config.php can currently be rewritten. */
+	public static function config_writable() {
+		$path = self::wp_config_path();
+		return $path && self::can_write() && DevBench_FS::is_writable( $path );
+	}
+
 	/**
-	 * Add, update, or insert a constant in wp-config.php.
-	 * $value should already be a PHP literal fragment for non-strings
-	 * (true/false/123) or a raw string (will be quoted) when $is_string.
+	 * Add, update or insert a constant in wp-config.php.
+	 *
+	 * @param string $name    Constant name (already validated by the caller).
+	 * @param string $literal PHP literal fragment, e.g. true, 123 or 'value'.
+	 * @return true|WP_Error
 	 */
 	public static function set_config_constant( $name, $literal ) {
-		$path = self::wp_config_path();
-		if ( ! $path || ! is_writable( $path ) ) {
-			return new WP_Error( 'not_writable', 'wp-config.php is not writable.' );
+		if ( ! self::can_write() ) {
+			return self::write_blocked();
 		}
-		$content = file_get_contents( $path );
+		$path = self::wp_config_path();
+		if ( ! $path || ! DevBench_FS::is_writable( $path ) ) {
+			return new WP_Error( 'not_writable', __( 'wp-config.php is not writable.', 'devbench' ) );
+		}
+		$content = DevBench_FS::read( $path );
+		if ( false === $content ) {
+			return new WP_Error( 'read_failed', __( 'Could not read wp-config.php.', 'devbench' ) );
+		}
+
 		$pattern = "/define\(\s*(['\"])" . preg_quote( $name, '/' ) . "\\1\s*,\s*[^;]+\);/";
 		$line    = "define( '{$name}', {$literal} );";
 
@@ -58,72 +143,196 @@ class DevBench_Helpers {
 		} else {
 			// Insert just before the "stop editing" marker, else after <?php.
 			$marker = "/* That's all, stop editing!";
-			if ( strpos( $content, $marker ) !== false ) {
+			if ( false !== strpos( $content, $marker ) ) {
 				$content = str_replace( $marker, $line . "\n\n" . $marker, $content );
 			} else {
 				$content = preg_replace( '/^<\?php/', "<?php\n" . $line, $content, 1 );
 			}
 		}
-		return file_put_contents( $path, $content ) !== false ? true : new WP_Error( 'write_failed', 'Failed to write wp-config.php.' );
+
+		return DevBench_FS::write( $path, $content );
 	}
 
-	/** Remove a constant definition from wp-config.php. */
+	/**
+	 * Remove a constant definition from wp-config.php.
+	 *
+	 * @return true|WP_Error
+	 */
 	public static function delete_config_constant( $name ) {
-		$path = self::wp_config_path();
-		if ( ! $path || ! is_writable( $path ) ) {
-			return new WP_Error( 'not_writable', 'wp-config.php is not writable.' );
+		if ( ! self::can_write() ) {
+			return self::write_blocked();
 		}
-		$content = file_get_contents( $path );
+		$path = self::wp_config_path();
+		if ( ! $path || ! DevBench_FS::is_writable( $path ) ) {
+			return new WP_Error( 'not_writable', __( 'wp-config.php is not writable.', 'devbench' ) );
+		}
+		$content = DevBench_FS::read( $path );
+		if ( false === $content ) {
+			return new WP_Error( 'read_failed', __( 'Could not read wp-config.php.', 'devbench' ) );
+		}
 		$pattern = "/[ \t]*define\(\s*(['\"])" . preg_quote( $name, '/' ) . "\\1\s*,\s*[^;]+\);[ \t]*\n?/";
 		$content = preg_replace( $pattern, '', $content );
-		return file_put_contents( $path, $content ) !== false ? true : new WP_Error( 'write_failed', 'Failed to write wp-config.php.' );
+
+		return DevBench_FS::write( $path, $content );
 	}
 
 	/** Read a constant's current runtime value as a display string. */
 	public static function constant_display( $name ) {
-		if ( ! defined( $name ) ) return [ 'value' => 'undefined', 'type' => 'undefined' ];
+		if ( ! defined( $name ) ) {
+			return array(
+				'value' => 'undefined',
+				'type'  => 'undefined',
+			);
+		}
 		$v = constant( $name );
-		if ( is_bool( $v ) )   return [ 'value' => $v ? 'true' : 'false', 'type' => 'bool' ];
-		if ( is_int( $v ) )    return [ 'value' => (string) $v, 'type' => 'int' ];
-		if ( is_null( $v ) )   return [ 'value' => 'null', 'type' => 'null' ];
-		return [ 'value' => (string) $v, 'type' => 'string' ];
+		if ( is_bool( $v ) ) {
+			return array(
+				'value' => $v ? 'true' : 'false',
+				'type'  => 'bool',
+			);
+		}
+		if ( is_int( $v ) ) {
+			return array(
+				'value' => (string) $v,
+				'type'  => 'int',
+			);
+		}
+		if ( is_null( $v ) ) {
+			return array(
+				'value' => 'null',
+				'type'  => 'null',
+			);
+		}
+		return array(
+			'value' => (string) $v,
+			'type'  => 'string',
+		);
 	}
 
+	/* ---------------- Paths ---------------- */
+
 	/**
-	 * Validate a path stays within ABSPATH (prevents directory traversal).
-	 * Accepts a path relative to ABSPATH; returns absolute real path or false.
+	 * Resolve a path that must stay inside ABSPATH.
+	 *
+	 * Traversal segments are stripped lexically first, then the result is
+	 * confirmed against realpath() so symlinks cannot escape either.
+	 *
+	 * @param string $relative Path relative to ABSPATH.
+	 * @return string|false Absolute path, or false when it escapes ABSPATH.
 	 */
 	public static function safe_path( $relative ) {
-		$relative = ltrim( str_replace( '\\', '/', (string) $relative ), '/' );
-		$base     = realpath( ABSPATH );
-		$target   = realpath( $base . '/' . $relative );
-
-		// For not-yet-existing files (new file/dir), validate the parent.
-		if ( $target === false ) {
-			$parent = realpath( dirname( $base . '/' . $relative ) );
-			if ( $parent === false ) return false;
-			if ( strpos( $parent, $base ) !== 0 ) return false;
-			return $base . '/' . $relative;
+		$base = realpath( ABSPATH );
+		if ( false === $base ) {
+			return false;
 		}
-		if ( strpos( $target, $base ) !== 0 ) return false;
-		return $target;
+		$base = rtrim( str_replace( '\\', '/', $base ), '/' );
+
+		$relative = str_replace( '\\', '/', (string) $relative );
+		$relative = ltrim( $relative, '/' );
+
+		// Reject any traversal segment outright rather than trying to fix it up.
+		foreach ( explode( '/', $relative ) as $segment ) {
+			if ( '..' === $segment ) {
+				return false;
+			}
+		}
+
+		$candidate = '' === $relative ? $base : $base . '/' . $relative;
+		$resolved  = realpath( $candidate );
+
+		if ( false === $resolved ) {
+			// Target does not exist yet (new file or folder): validate the parent.
+			$parent = realpath( dirname( $candidate ) );
+			if ( false === $parent || ! self::is_within( $base, $parent ) ) {
+				return false;
+			}
+			return $parent . '/' . basename( $candidate );
+		}
+
+		$resolved = str_replace( '\\', '/', $resolved );
+		return self::is_within( $base, $resolved ) ? $resolved : false;
+	}
+
+	/** Whether $path is $base itself or sits beneath it. */
+	private static function is_within( $base, $path ) {
+		$path = rtrim( str_replace( '\\', '/', $path ), '/' );
+		return $path === $base || 0 === strpos( $path, $base . '/' );
 	}
 
 	/** Relative path from ABSPATH, normalised to forward slashes. */
 	public static function relative_path( $absolute ) {
 		$base = realpath( ABSPATH );
-		$rel  = str_replace( $base, '', $absolute );
-		return str_replace( '\\', '/', $rel );
+		$base = false === $base ? ABSPATH : $base;
+		$rel  = str_replace( str_replace( '\\', '/', $base ), '', str_replace( '\\', '/', (string) $absolute ) );
+		return $rel;
 	}
 
-	/** Octal permission string for a path, e.g. "0644" -> "644". */
+	/** Octal permission string for a path, e.g. "644". */
 	public static function perms( $path ) {
-		return substr( sprintf( '%o', fileperms( $path ) ), -3 );
+		return DevBench_FS::perms( $path );
 	}
 
-	/** Inline SVG icon set (stroke-based, 20x20, currentColor). */
+	/* ---------------- Icons ---------------- */
+
+	/** Tags and attributes permitted inside the inline SVG icons. */
+	public static function svg_allowed() {
+		return array(
+			'svg'      => array(
+				'xmlns'            => array(),
+				'width'            => array(),
+				'height'           => array(),
+				'viewbox'          => array(),
+				'fill'             => array(),
+				'stroke'           => array(),
+				'stroke-width'     => array(),
+				'stroke-linecap'   => array(),
+				'stroke-linejoin'  => array(),
+				'class'            => array(),
+				'aria-hidden'      => array(),
+				'focusable'        => array(),
+			),
+			'path'     => array(
+				'd'    => array(),
+				'fill' => array(),
+			),
+			'circle'   => array(
+				'cx' => array(),
+				'cy' => array(),
+				'r'  => array(),
+			),
+			'ellipse'  => array(
+				'cx' => array(),
+				'cy' => array(),
+				'rx' => array(),
+				'ry' => array(),
+			),
+			'rect'     => array(
+				'x'      => array(),
+				'y'      => array(),
+				'width'  => array(),
+				'height' => array(),
+				'rx'     => array(),
+				'ry'     => array(),
+			),
+			'line'     => array(
+				'x1' => array(),
+				'x2' => array(),
+				'y1' => array(),
+				'y2' => array(),
+			),
+			'polyline' => array( 'points' => array() ),
+			'polygon'  => array( 'points' => array() ),
+		);
+	}
+
+	/** Echo an icon, escaped for output. Preferred over echoing icon() directly. */
+	public static function the_icon( $name, $size = 18 ) {
+		echo wp_kses( self::icon( $name, $size ), self::svg_allowed() );
+	}
+
+	/** Inline SVG icon set (stroke-based, 24x24 viewBox, currentColor). */
 	public static function icon( $name, $size = 18 ) {
-		$paths = [
+		$paths = array(
 			'dashboard' => '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>',
 			'search'    => '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
 			'bug'       => '<path d="m8 2 1.88 1.88"/><path d="M14.12 3.88 16 2"/><path d="M9 7.13v-1a3.003 3.003 0 1 1 6 0v1"/><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6"/><path d="M12 20v-9"/><path d="M6.53 9C4.6 8.8 3 7.1 3 5"/><path d="M6 13H2"/><path d="M3 21c0-2.1 1.7-3.9 3.8-4"/><path d="M20.97 5c0 2.1-1.6 3.8-3.5 4"/><path d="M22 13h-4"/><path d="M17.2 17c2.1.1 3.8 1.9 3.8 4"/>',
@@ -152,11 +361,14 @@ class DevBench_Helpers {
 			'cpu'       => '<rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9" rx="1"/><path d="M15 2v2"/><path d="M15 20v2"/><path d="M2 15h2"/><path d="M2 9h2"/><path d="M20 15h2"/><path d="M20 9h2"/><path d="M9 2v2"/><path d="M9 20v2"/>',
 			'copy'      => '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
 			'upload'    => '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/>',
-		];
-		$d = $paths[ $name ] ?? $paths['info'];
+			'lock'      => '<rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+		);
+
+		$d = isset( $paths[ $name ] ) ? $paths[ $name ] : $paths['info'];
+
 		return sprintf(
-			'<svg xmlns="http://www.w3.org/2000/svg" width="%1$d" height="%1$d" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="db-icon">%2$s</svg>',
-			$size,
+			'<svg xmlns="http://www.w3.org/2000/svg" width="%1$d" height="%1$d" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="db-icon" aria-hidden="true" focusable="false">%2$s</svg>',
+			(int) $size,
 			$d
 		);
 	}

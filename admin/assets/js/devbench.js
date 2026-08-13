@@ -31,6 +31,31 @@
 	}
 	window.DBEsc = esc;
 
+	/* ---------------- Clipboard ---------------- */
+	function copy(text, emptyMessage) {
+		if (!text || text === emptyMessage) { Toast.show('Nothing to copy', 'error'); return; }
+
+		function ok() { Toast.show('Copied to clipboard', 'success'); }
+		function fallback() {
+			const ta = document.createElement('textarea');
+			ta.value = text;
+			ta.style.position = 'fixed';
+			ta.style.opacity = '0';
+			document.body.appendChild(ta);
+			ta.focus();
+			ta.select();
+			try { document.execCommand('copy'); ok(); } catch (e) { Toast.show('Copy failed', 'error'); }
+			document.body.removeChild(ta);
+		}
+
+		if (navigator.clipboard && navigator.clipboard.writeText) {
+			navigator.clipboard.writeText(text).then(ok, fallback);
+		} else {
+			fallback();
+		}
+	}
+	window.DBCopy = copy;
+
 	function humanSize(b) {
 		if (!b) return '0 B';
 		const u = ['B', 'KB', 'MB', 'GB'];

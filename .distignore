@@ -1,0 +1,13 @@
+# Everything here is excluded from the distributed plugin ZIP.
+.DS_Store
+.git
+.github
+.gitignore
+.distignore
+Thumbs.db
+node_modules
+vendor
+composer.json
+composer.lock
+phpcs.xml
+README.md

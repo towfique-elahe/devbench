@@ -1,41 +1,51 @@
 <?php
 defined( 'ABSPATH' ) || exit;
-$page_id = 'devbench-debug';
-$cfg = DevBench_Helpers::wp_config_path();
-$writable = $cfg && is_writable( $cfg );
-include __DIR__ . '/_header.php';
+$devbench_page_id  = 'devbench-debug';
+$devbench_writable = DevBench_Helpers::config_writable();
 
-$descriptions = [
-	'WP_DEBUG'         => 'Master switch for WordPress debug mode.',
-	'WP_DEBUG_LOG'     => 'Write errors to wp-content/debug.log.',
-	'WP_DEBUG_DISPLAY' => 'Show errors on screen (disable on production).',
-	'SCRIPT_DEBUG'     => 'Load unminified core CSS and JS files.',
-	'SAVEQUERIES'      => 'Store every DB query for analysis (heavy).',
-];
+require __DIR__ . '/_header.php';
+
+$devbench_descriptions = array(
+	'WP_DEBUG'         => __( 'Master switch for WordPress debug mode.', 'devbench' ),
+	'WP_DEBUG_LOG'     => __( 'Write errors to wp-content/debug.log.', 'devbench' ),
+	'WP_DEBUG_DISPLAY' => __( 'Show errors on screen (disable on production).', 'devbench' ),
+	'SCRIPT_DEBUG'     => __( 'Load unminified core CSS and JS files.', 'devbench' ),
+	'SAVEQUERIES'      => __( 'Store every DB query for analysis (heavy).', 'devbench' ),
+);
 ?>
 <div class="db-page-head">
-	<h1><?php echo DevBench_Helpers::icon('bug',22); ?> Debug Manager</h1>
-	<p>Toggle WordPress debug constants and watch <code>debug.log</code> live. Changes are written to <code>wp-config.php</code>.</p>
+	<h1><?php DevBench_Helpers::the_icon( 'bug', 22 ); ?> <?php esc_html_e( 'Debug Manager', 'devbench' ); ?></h1>
+	<p><?php esc_html_e( 'Toggle WordPress debug constants and watch debug.log live. Changes are written to wp-config.php.', 'devbench' ); ?></p>
 </div>
 
-<?php if ( ! $writable ) : ?>
-<div class="db-alert db-alert-warn"><?php echo DevBench_Helpers::icon('info',17); ?><div><strong>wp-config.php is not writable.</strong> Toggles below are disabled. Adjust file permissions to enable editing.</div></div>
+<?php if ( ! $devbench_writable ) : ?>
+<div class="db-alert db-alert-warn">
+	<?php DevBench_Helpers::the_icon( 'info', 17 ); ?>
+	<div>
+		<strong><?php esc_html_e( 'wp-config.php cannot be written.', 'devbench' ); ?></strong>
+		<?php esc_html_e( 'The toggles below are disabled. Check the file permissions, or the lock notice above.', 'devbench' ); ?>
+	</div>
+</div>
 <?php endif; ?>
 
 <div class="db-grid db-grid-2">
 	<div class="db-card db-mb-0">
-		<div class="db-card-head"><h3 class="db-card-title"><?php echo DevBench_Helpers::icon('settings',16); ?> Debug Constants</h3></div>
+		<div class="db-card-head"><h3 class="db-card-title"><?php DevBench_Helpers::the_icon( 'settings', 16 ); ?> <?php esc_html_e( 'Debug Constants', 'devbench' ); ?></h3></div>
 		<div class="db-card-body flush">
-			<?php foreach ( DevBench_Debug::CONSTANTS as $const ) :
-				$on = defined( $const ) && constant( $const ) === true;
-			?>
+			<?php
+			foreach ( DevBench_Debug::CONSTANTS as $devbench_constant ) :
+				$devbench_on = defined( $devbench_constant ) && true === constant( $devbench_constant );
+				?>
 			<div class="db-flex-between" style="padding:14px 20px;border-bottom:1px solid var(--db-border)">
 				<div style="padding-right:16px">
-					<div class="db-mono" style="font-weight:600;font-size:13px"><?php echo esc_html( $const ); ?></div>
-					<div class="db-muted" style="font-size:12px;margin-top:2px"><?php echo esc_html( $descriptions[ $const ] ?? '' ); ?></div>
+					<div class="db-mono" style="font-weight:600;font-size:13px"><?php echo esc_html( $devbench_constant ); ?></div>
+					<div class="db-muted" style="font-size:12px;margin-top:2px">
+						<?php echo esc_html( isset( $devbench_descriptions[ $devbench_constant ] ) ? $devbench_descriptions[ $devbench_constant ] : '' ); ?>
+					</div>
 				</div>
 				<label class="db-switch">
-					<input type="checkbox" class="db-debug-toggle" data-const="<?php echo esc_attr( $const ); ?>" <?php checked( $on ); ?> <?php disabled( ! $writable ); ?>>
+					<input type="checkbox" class="db-debug-toggle" data-const="<?php echo esc_attr( $devbench_constant ); ?>"
+						<?php checked( $devbench_on ); ?> <?php disabled( ! $devbench_writable ); ?>>
 					<span class="db-switch-track"></span>
 				</label>
 			</div>
@@ -45,10 +55,10 @@ $descriptions = [
 
 	<div class="db-card db-mb-0">
 		<div class="db-card-head">
-			<h3 class="db-card-title"><?php echo DevBench_Helpers::icon('chart',16); ?> debug.log <span class="db-badge db-badge-gray" id="db-log-size">—</span></h3>
+			<h3 class="db-card-title"><?php DevBench_Helpers::the_icon('chart',16); ?> debug.log <span class="db-badge db-badge-gray" id="db-log-size">—</span></h3>
 			<div class="db-flex db-gap-8">
-				<button class="db-btn db-btn-ghost db-btn-sm" id="db-log-refresh"><?php echo DevBench_Helpers::icon('refresh',14); ?> Refresh</button>
-				<button class="db-btn db-btn-ghost db-btn-sm" id="db-log-copy"><?php echo DevBench_Helpers::icon('copy',14); ?> Copy</button>
+				<button class="db-btn db-btn-ghost db-btn-sm" id="db-log-refresh"><?php DevBench_Helpers::the_icon('refresh',14); ?> Refresh</button>
+				<button class="db-btn db-btn-ghost db-btn-sm" id="db-log-copy"><?php DevBench_Helpers::the_icon('copy',14); ?> Copy</button>
 				<button class="db-btn db-btn-danger db-btn-sm" id="db-log-clear">Clear</button>
 			</div>
 		</div>
@@ -84,20 +94,8 @@ window.DBPages['devbench-debug'] = function () {
 	$('#db-log-refresh').on('click', loadLog);
 	$('#db-log-copy').on('click', function () {
 		var text = $('#db-log-view').text();
-		if (!text || text === '(log is empty)' || text === 'Loading…') { DBToast.show('Nothing to copy', 'error'); return; }
-		function ok() { DBToast.show('Log copied to clipboard', 'success'); }
-		function fallback() {
-			var ta = document.createElement('textarea');
-			ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
-			document.body.appendChild(ta); ta.focus(); ta.select();
-			try { document.execCommand('copy'); ok(); } catch (e) { DBToast.show('Copy failed', 'error'); }
-			document.body.removeChild(ta);
-		}
-		if (navigator.clipboard && navigator.clipboard.writeText) {
-			navigator.clipboard.writeText(text).then(ok, fallback);
-		} else {
-			fallback();
-		}
+		if (text === 'Loading…') text = '';
+		DBCopy(text, '(log is empty)');
 	});
 	$('#db-log-clear').on('click', function () {
 		if (!confirm('Clear the debug log?')) return;
@@ -110,4 +108,4 @@ window.DBPages['devbench-debug'] = function () {
 };
 </script>
 
-<?php include __DIR__ . '/_footer.php'; ?>
+<?php require __DIR__ . '/_footer.php'; ?>

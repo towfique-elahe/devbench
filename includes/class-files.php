@@ -1,240 +1,518 @@
 <?php
+/**
+ * File manager.
+ *
+ * Reads are open to anyone holding the plugin capability; every write also
+ * requires DevBench_Helpers::can_write(), which honours DISALLOW_FILE_EDIT and
+ * DISALLOW_FILE_MODS. All paths are resolved through DevBench_Helpers::safe_path()
+ * so nothing outside ABSPATH is reachable, and all I/O goes through the
+ * WordPress Filesystem API.
+ *
+ * @package DevBench
+ */
+
 defined( 'ABSPATH' ) || exit;
 
 class DevBench_Files {
 
-	const MAX_EDIT_SIZE = 5242880; // 5 MB
+	const MAX_EDIT_SIZE = 5242880; // 5 MB.
 
-	const ALLOWED_UPLOAD = [
-		'php','phtml','js','mjs','cjs','jsx','ts','tsx','css','scss','sass','less',
-		'html','htm','twig','json','yml','yaml','toml','xml','txt','md','rst','log',
-		'sql','csv','tsv','env','ini','cfg','conf','htaccess','htpasswd',
-		'sh','bash','zsh','py','rb','pl','lua','go','rs','java','c','cpp','h',
-		'jpg','jpeg','png','gif','webp','avif','svg','ico','bmp',
-		'woff','woff2','ttf','otf','eot',
-		'mp3','wav','ogg','mp4','webm',
-		'zip','gz','tar','pdf','map','lock','wasm',
-	];
+	const ALLOWED_UPLOAD = array(
+		'php', 'phtml', 'js', 'mjs', 'cjs', 'jsx', 'ts', 'tsx', 'css', 'scss', 'sass', 'less',
+		'html', 'htm', 'twig', 'json', 'yml', 'yaml', 'toml', 'xml', 'txt', 'md', 'rst', 'log',
+		'sql', 'csv', 'tsv', 'env', 'ini', 'cfg', 'conf', 'htaccess', 'htpasswd',
+		'sh', 'bash', 'zsh', 'py', 'rb', 'pl', 'lua', 'go', 'rs', 'java', 'c', 'cpp', 'h',
+		'jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'svg', 'ico', 'bmp',
+		'woff', 'woff2', 'ttf', 'otf', 'eot',
+		'mp3', 'wav', 'ogg', 'mp4', 'webm',
+		'zip', 'gz', 'tar', 'pdf', 'map', 'lock', 'wasm',
+	);
 
-	/** List a directory's contents. */
+	/** Guard used by every write operation. @return true|WP_Error */
+	private static function guard_write() {
+		if ( ! DevBench_Helpers::can_write() ) {
+			return DevBench_Helpers::write_blocked();
+		}
+		if ( ! DevBench_FS::get() ) {
+			return DevBench_FS::unavailable();
+		}
+		return true;
+	}
+
+	/* ---------------- Listing ---------------- */
+
+	/** @return array|WP_Error */
 	public static function list_dir( $relative ) {
 		$abs = DevBench_Helpers::safe_path( $relative );
-		if ( ! $abs || ! is_dir( $abs ) ) {
-			return new WP_Error( 'invalid_dir', 'Directory not found.' );
+		if ( ! $abs || ! DevBench_FS::is_dir( $abs ) ) {
+			return new WP_Error( 'invalid_dir', __( 'Directory not found.', 'devbench' ) );
 		}
-		$items = [];
-		foreach ( new DirectoryIterator( $abs ) as $f ) {
-			if ( $f->isDot() ) continue;
-			$items[] = self::describe( $f->getFileInfo() );
+
+		$list = DevBench_FS::dirlist( $abs );
+		if ( false === $list ) {
+			return new WP_Error( 'unreadable', __( 'Could not read the directory.', 'devbench' ) );
 		}
-		usort( $items, function ( $a, $b ) {
-			if ( $a['type'] !== $b['type'] ) return $a['type'] === 'dir' ? -1 : 1;
-			return strcasecmp( $a['name'], $b['name'] );
-		} );
-		return [
-			'path'  => DevBench_Helpers::relative_path( $abs ) ?: '/',
+
+		$items = array();
+		foreach ( (array) $list as $entry ) {
+			$name = isset( $entry['name'] ) ? $entry['name'] : '';
+			if ( '' === $name || '.' === $name || '..' === $name ) {
+				continue;
+			}
+			$items[] = self::describe( $abs . '/' . $name, $name, $entry );
+		}
+
+		usort( $items, array( __CLASS__, 'compare_items' ) );
+
+		return array(
+			'path'  => DevBench_Helpers::relative_path( $abs ) ? DevBench_Helpers::relative_path( $abs ) : '/',
 			'items' => $items,
-		];
+		);
 	}
 
-	private static function describe( SplFileInfo $f ) {
-		$is_dir = $f->isDir();
-		return [
-			'name'     => $f->getFilename(),
+	/** Directories first, then case-insensitive name order. */
+	private static function compare_items( $a, $b ) {
+		if ( $a['type'] !== $b['type'] ) {
+			return 'dir' === $a['type'] ? -1 : 1;
+		}
+		return strcasecmp( $a['name'], $b['name'] );
+	}
+
+	/**
+	 * Normalise one directory entry for the UI.
+	 *
+	 * @param string $path  Absolute path.
+	 * @param string $name  Entry name.
+	 * @param array  $entry Raw dirlist() entry, when available.
+	 */
+	private static function describe( $path, $name, $entry = array() ) {
+		$is_dir = isset( $entry['type'] ) ? 'd' === $entry['type'] : DevBench_FS::is_dir( $path );
+
+		if ( $is_dir ) {
+			$size = 0;
+		} elseif ( isset( $entry['size'] ) ) {
+			$size = (int) $entry['size'];
+		} else {
+			$size = DevBench_FS::size( $path );
+		}
+
+		$modified = isset( $entry['lastmodunix'] ) ? (int) $entry['lastmodunix'] : DevBench_FS::mtime( $path );
+		$perms    = isset( $entry['permsn'] ) ? substr( $entry['permsn'], -3 ) : DevBench_FS::perms( $path );
+
+		return array(
+			'name'     => $name,
 			'type'     => $is_dir ? 'dir' : 'file',
-			'size'     => $is_dir ? 0 : $f->getSize(),
-			'modified' => $f->getMTime(),
-			'writable' => $f->isWritable(),
-			'ext'      => $is_dir ? '' : strtolower( $f->getExtension() ),
-			'perms'    => DevBench_Helpers::perms( $f->getPathname() ),
-			'path'     => DevBench_Helpers::relative_path( $f->getPathname() ),
-		];
+			'size'     => $size,
+			'modified' => $modified,
+			'writable' => DevBench_FS::is_writable( $path ),
+			'ext'      => $is_dir ? '' : strtolower( pathinfo( $name, PATHINFO_EXTENSION ) ),
+			'perms'    => $perms,
+			'path'     => DevBench_Helpers::relative_path( $path ),
+		);
 	}
 
+	/* ---------------- Read / write ---------------- */
+
+	/** @return array|WP_Error */
 	public static function read_file( $relative ) {
 		$abs = DevBench_Helpers::safe_path( $relative );
-		if ( ! $abs || ! is_file( $abs ) ) return new WP_Error( 'not_found', 'File not found.' );
-		if ( filesize( $abs ) > self::MAX_EDIT_SIZE ) return new WP_Error( 'too_large', 'File is too large to edit (>5MB).' );
-		$content = file_get_contents( $abs );
-		if ( $content === false ) return new WP_Error( 'read_failed', 'Could not read file.' );
-		return [
+		if ( ! $abs || ! DevBench_FS::is_file( $abs ) ) {
+			return new WP_Error( 'not_found', __( 'File not found.', 'devbench' ) );
+		}
+
+		$size = DevBench_FS::size( $abs );
+		if ( $size > self::MAX_EDIT_SIZE ) {
+			return new WP_Error( 'too_large', __( 'File is too large to edit (over 5 MB).', 'devbench' ) );
+		}
+
+		$content = DevBench_FS::read( $abs );
+		if ( false === $content ) {
+			return new WP_Error( 'read_failed', __( 'Could not read the file.', 'devbench' ) );
+		}
+
+		return array(
 			'content'  => $content,
-			'writable' => is_writable( $abs ),
-			'size'     => DevBench_Helpers::filesize( filesize( $abs ) ),
-			'perms'    => DevBench_Helpers::perms( $abs ),
-		];
+			'writable' => DevBench_Helpers::can_write() && DevBench_FS::is_writable( $abs ),
+			'size'     => DevBench_Helpers::filesize( $size ),
+			'perms'    => DevBench_FS::perms( $abs ),
+		);
 	}
 
+	/** @return true|WP_Error */
 	public static function write_file( $relative, $content ) {
+		$guard = self::guard_write();
+		if ( is_wp_error( $guard ) ) {
+			return $guard;
+		}
+
 		$abs = DevBench_Helpers::safe_path( $relative );
-		if ( ! $abs ) return new WP_Error( 'invalid', 'Invalid path.' );
-		if ( file_exists( $abs ) && ! is_writable( $abs ) ) return new WP_Error( 'not_writable', 'File is not writable.' );
-		return file_put_contents( $abs, $content ) !== false ? true : new WP_Error( 'write_failed', 'Write failed.' );
+		if ( ! $abs ) {
+			return new WP_Error( 'invalid', __( 'Invalid path.', 'devbench' ) );
+		}
+		if ( DevBench_FS::exists( $abs ) && ! DevBench_FS::is_writable( $abs ) ) {
+			return new WP_Error( 'not_writable', __( 'File is not writable.', 'devbench' ) );
+		}
+
+		return DevBench_FS::write( $abs, $content );
 	}
 
+	/** @return array|WP_Error */
 	public static function create_file( $dir_relative, $name ) {
+		$guard = self::guard_write();
+		if ( is_wp_error( $guard ) ) {
+			return $guard;
+		}
+
 		$dir = DevBench_Helpers::safe_path( $dir_relative );
-		if ( ! $dir || ! is_dir( $dir ) ) return new WP_Error( 'invalid', 'Invalid directory.' );
+		if ( ! $dir || ! DevBench_FS::is_dir( $dir ) ) {
+			return new WP_Error( 'invalid', __( 'Invalid directory.', 'devbench' ) );
+		}
+
 		$name = sanitize_file_name( $name );
-		if ( ! $name ) return new WP_Error( 'invalid', 'Invalid file name.' );
+		if ( ! $name ) {
+			return new WP_Error( 'invalid', __( 'Invalid file name.', 'devbench' ) );
+		}
+
 		$target = $dir . '/' . $name;
-		if ( file_exists( $target ) ) return new WP_Error( 'exists', 'File already exists.' );
-		return file_put_contents( $target, '' ) !== false
-			? [ 'path' => DevBench_Helpers::relative_path( $target ) ]
-			: new WP_Error( 'failed', 'Could not create file.' );
+		if ( DevBench_FS::exists( $target ) ) {
+			return new WP_Error( 'exists', __( 'File already exists.', 'devbench' ) );
+		}
+
+		$result = DevBench_FS::touch( $target );
+		if ( is_wp_error( $result ) ) {
+			return $result;
+		}
+
+		return array( 'path' => DevBench_Helpers::relative_path( $target ) );
 	}
 
+	/** @return true|WP_Error */
 	public static function create_dir( $dir_relative, $name ) {
+		$guard = self::guard_write();
+		if ( is_wp_error( $guard ) ) {
+			return $guard;
+		}
+
 		$dir = DevBench_Helpers::safe_path( $dir_relative );
-		if ( ! $dir || ! is_dir( $dir ) ) return new WP_Error( 'invalid', 'Invalid directory.' );
+		if ( ! $dir || ! DevBench_FS::is_dir( $dir ) ) {
+			return new WP_Error( 'invalid', __( 'Invalid directory.', 'devbench' ) );
+		}
+
 		$name = sanitize_file_name( $name );
-		if ( ! $name ) return new WP_Error( 'invalid', 'Invalid folder name.' );
+		if ( ! $name ) {
+			return new WP_Error( 'invalid', __( 'Invalid folder name.', 'devbench' ) );
+		}
+
 		$target = $dir . '/' . $name;
-		if ( file_exists( $target ) ) return new WP_Error( 'exists', 'Folder already exists.' );
-		return mkdir( $target, 0755 ) ? true : new WP_Error( 'failed', 'Could not create folder.' );
+		if ( DevBench_FS::exists( $target ) ) {
+			return new WP_Error( 'exists', __( 'Folder already exists.', 'devbench' ) );
+		}
+
+		return DevBench_FS::mkdir( $target );
 	}
 
+	/** @return true|WP_Error */
 	public static function delete( $relative ) {
-		$abs = DevBench_Helpers::safe_path( $relative );
-		if ( ! $abs ) return new WP_Error( 'invalid', 'Invalid path.' );
-		return is_dir( $abs ) ? self::rrmdir( $abs ) : ( unlink( $abs ) ? true : new WP_Error( 'failed', 'Delete failed.' ) );
-	}
-
-	private static function rrmdir( $dir ) {
-		foreach ( scandir( $dir ) as $item ) {
-			if ( $item === '.' || $item === '..' ) continue;
-			$path = $dir . '/' . $item;
-			is_dir( $path ) ? self::rrmdir( $path ) : unlink( $path );
+		$guard = self::guard_write();
+		if ( is_wp_error( $guard ) ) {
+			return $guard;
 		}
-		return rmdir( $dir ) ? true : new WP_Error( 'failed', 'Could not remove directory.' );
+
+		$abs = DevBench_Helpers::safe_path( $relative );
+		if ( ! $abs || ! DevBench_FS::exists( $abs ) ) {
+			return new WP_Error( 'invalid', __( 'Invalid path.', 'devbench' ) );
+		}
+
+		// Refuse to delete the WordPress root itself.
+		if ( rtrim( $abs, '/' ) === rtrim( DevBench_Helpers::safe_path( '/' ), '/' ) ) {
+			return new WP_Error( 'refused', __( 'Refusing to delete the WordPress root directory.', 'devbench' ) );
+		}
+
+		return DevBench_FS::delete( $abs, DevBench_FS::is_dir( $abs ) );
 	}
 
+	/** @return true|WP_Error */
 	public static function rename( $relative, $new_name ) {
-		$abs = DevBench_Helpers::safe_path( $relative );
-		if ( ! $abs ) return new WP_Error( 'invalid', 'Invalid path.' );
-		$new_name = sanitize_file_name( $new_name );
-		if ( ! $new_name ) return new WP_Error( 'invalid', 'Invalid name.' );
-		$target = dirname( $abs ) . '/' . $new_name;
-		if ( file_exists( $target ) ) return new WP_Error( 'exists', 'Target already exists.' );
-		return rename( $abs, $target ) ? true : new WP_Error( 'failed', 'Rename failed.' );
-	}
-
-	public static function chmod_item( $relative, $mode ) {
-		$abs = DevBench_Helpers::safe_path( $relative );
-		if ( ! $abs ) return new WP_Error( 'invalid', 'Invalid path.' );
-		if ( ! preg_match( '/^[0-7]{3,4}$/', $mode ) ) return new WP_Error( 'invalid', 'Invalid octal mode.' );
-		return chmod( $abs, octdec( $mode ) ) ? true : new WP_Error( 'failed', 'chmod failed.' );
-	}
-
-	public static function copy_item( $src, $dest_dir, $new_name = '' ) {
-		$s = DevBench_Helpers::safe_path( $src );
-		$d = DevBench_Helpers::safe_path( $dest_dir );
-		if ( ! $s || ! is_file( $s ) ) return new WP_Error( 'invalid', 'Source file not found.' );
-		if ( ! $d || ! is_dir( $d ) ) return new WP_Error( 'invalid', 'Destination directory not found.' );
-		$name   = $new_name ? sanitize_file_name( $new_name ) : basename( $s );
-		$target = $d . '/' . $name;
-		if ( file_exists( $target ) ) return new WP_Error( 'exists', 'Target already exists.' );
-		return copy( $s, $target ) ? true : new WP_Error( 'failed', 'Copy failed.' );
-	}
-
-	public static function move_item( $src, $dest_dir, $new_name = '' ) {
-		$s = DevBench_Helpers::safe_path( $src );
-		$d = DevBench_Helpers::safe_path( $dest_dir );
-		if ( ! $s ) return new WP_Error( 'invalid', 'Source not found.' );
-		if ( ! $d || ! is_dir( $d ) ) return new WP_Error( 'invalid', 'Destination directory not found.' );
-		$name   = $new_name ? sanitize_file_name( $new_name ) : basename( $s );
-		$target = $d . '/' . $name;
-		if ( file_exists( $target ) ) return new WP_Error( 'exists', 'Target already exists.' );
-		return rename( $s, $target ) ? true : new WP_Error( 'failed', 'Move failed.' );
-	}
-
-	public static function bulk_delete( $paths ) {
-		$deleted = 0; $errors = [];
-		foreach ( (array) $paths as $p ) {
-			$r = self::delete( sanitize_text_field( $p ) );
-			is_wp_error( $r ) ? $errors[] = basename( $p ) : $deleted++;
+		$guard = self::guard_write();
+		if ( is_wp_error( $guard ) ) {
+			return $guard;
 		}
-		return [ 'deleted' => $deleted, 'errors' => $errors ];
+
+		$abs = DevBench_Helpers::safe_path( $relative );
+		if ( ! $abs || ! DevBench_FS::exists( $abs ) ) {
+			return new WP_Error( 'invalid', __( 'Invalid path.', 'devbench' ) );
+		}
+
+		$new_name = sanitize_file_name( $new_name );
+		if ( ! $new_name ) {
+			return new WP_Error( 'invalid', __( 'Invalid name.', 'devbench' ) );
+		}
+
+		$target = dirname( $abs ) . '/' . $new_name;
+		if ( DevBench_FS::exists( $target ) ) {
+			return new WP_Error( 'exists', __( 'Target already exists.', 'devbench' ) );
+		}
+
+		return DevBench_FS::move( $abs, $target );
 	}
 
-	public static function search_dir( $dir_relative, $query ) {
-		$dir = DevBench_Helpers::safe_path( $dir_relative );
-		if ( ! $dir || ! is_dir( $dir ) ) return [];
-		$results = [];
-		foreach ( new DirectoryIterator( $dir ) as $f ) {
-			if ( $f->isDot() ) continue;
-			if ( stripos( $f->getFilename(), $query ) !== false ) {
-				$results[] = self::describe( $f->getFileInfo() );
+	/** @return true|WP_Error */
+	public static function chmod_item( $relative, $mode ) {
+		$guard = self::guard_write();
+		if ( is_wp_error( $guard ) ) {
+			return $guard;
+		}
+
+		$abs = DevBench_Helpers::safe_path( $relative );
+		if ( ! $abs || ! DevBench_FS::exists( $abs ) ) {
+			return new WP_Error( 'invalid', __( 'Invalid path.', 'devbench' ) );
+		}
+		if ( ! preg_match( '/^[0-7]{3,4}$/', $mode ) ) {
+			return new WP_Error( 'invalid', __( 'Invalid octal mode.', 'devbench' ) );
+		}
+
+		return DevBench_FS::chmod( $abs, octdec( $mode ) );
+	}
+
+	/** @return true|WP_Error */
+	public static function copy_item( $src, $dest_dir, $new_name = '' ) {
+		$guard = self::guard_write();
+		if ( is_wp_error( $guard ) ) {
+			return $guard;
+		}
+
+		$source      = DevBench_Helpers::safe_path( $src );
+		$destination = DevBench_Helpers::safe_path( $dest_dir );
+
+		if ( ! $source || ! DevBench_FS::is_file( $source ) ) {
+			return new WP_Error( 'invalid', __( 'Source file not found.', 'devbench' ) );
+		}
+		if ( ! $destination || ! DevBench_FS::is_dir( $destination ) ) {
+			return new WP_Error( 'invalid', __( 'Destination directory not found.', 'devbench' ) );
+		}
+
+		$name   = $new_name ? sanitize_file_name( $new_name ) : basename( $source );
+		$target = $destination . '/' . $name;
+
+		if ( DevBench_FS::exists( $target ) ) {
+			return new WP_Error( 'exists', __( 'Target already exists.', 'devbench' ) );
+		}
+
+		return DevBench_FS::copy( $source, $target );
+	}
+
+	/** @return true|WP_Error */
+	public static function move_item( $src, $dest_dir, $new_name = '' ) {
+		$guard = self::guard_write();
+		if ( is_wp_error( $guard ) ) {
+			return $guard;
+		}
+
+		$source      = DevBench_Helpers::safe_path( $src );
+		$destination = DevBench_Helpers::safe_path( $dest_dir );
+
+		if ( ! $source || ! DevBench_FS::exists( $source ) ) {
+			return new WP_Error( 'invalid', __( 'Source not found.', 'devbench' ) );
+		}
+		if ( ! $destination || ! DevBench_FS::is_dir( $destination ) ) {
+			return new WP_Error( 'invalid', __( 'Destination directory not found.', 'devbench' ) );
+		}
+
+		$name   = $new_name ? sanitize_file_name( $new_name ) : basename( $source );
+		$target = $destination . '/' . $name;
+
+		if ( DevBench_FS::exists( $target ) ) {
+			return new WP_Error( 'exists', __( 'Target already exists.', 'devbench' ) );
+		}
+
+		return DevBench_FS::move( $source, $target );
+	}
+
+	/** @return array|WP_Error */
+	public static function bulk_delete( $paths ) {
+		$guard = self::guard_write();
+		if ( is_wp_error( $guard ) ) {
+			return $guard;
+		}
+
+		$deleted = 0;
+		$errors  = array();
+
+		foreach ( (array) $paths as $path ) {
+			$result = self::delete( $path );
+			if ( is_wp_error( $result ) ) {
+				$errors[] = basename( $path );
+			} else {
+				++$deleted;
 			}
 		}
-		usort( $results, function ( $a, $b ) {
-			if ( $a['type'] !== $b['type'] ) return $a['type'] === 'dir' ? -1 : 1;
-			return strcasecmp( $a['name'], $b['name'] );
-		} );
+
+		return array(
+			'deleted' => $deleted,
+			'errors'  => $errors,
+		);
+	}
+
+	/** Filter the current directory by filename. */
+	public static function search_dir( $dir_relative, $query ) {
+		$listing = self::list_dir( $dir_relative );
+		if ( is_wp_error( $listing ) ) {
+			return array();
+		}
+		if ( '' === $query ) {
+			return $listing['items'];
+		}
+
+		$results = array();
+		foreach ( $listing['items'] as $item ) {
+			if ( false !== stripos( $item['name'], $query ) ) {
+				$results[] = $item;
+			}
+		}
 		return $results;
 	}
 
+	/* ---------------- Upload ---------------- */
+
+	/**
+	 * Store an uploaded file in the given directory.
+	 *
+	 * @param string $dir_relative Target directory, relative to ABSPATH.
+	 * @param array  $file         One entry from $_FILES.
+	 * @return true|WP_Error
+	 */
 	public static function upload( $dir_relative, $file ) {
-		$dir = DevBench_Helpers::safe_path( $dir_relative );
-		if ( ! $dir || ! is_dir( $dir ) ) return new WP_Error( 'invalid', 'Invalid directory.' );
-		$name = sanitize_file_name( $file['name'] );
-		$ext  = strtolower( pathinfo( $name, PATHINFO_EXTENSION ) );
-		if ( $ext && ! in_array( $ext, self::ALLOWED_UPLOAD, true ) ) {
-			return new WP_Error( 'type', "File type .{$ext} is not allowed." );
+		$guard = self::guard_write();
+		if ( is_wp_error( $guard ) ) {
+			return $guard;
 		}
+
+		$dir = DevBench_Helpers::safe_path( $dir_relative );
+		if ( ! $dir || ! DevBench_FS::is_dir( $dir ) ) {
+			return new WP_Error( 'invalid', __( 'Invalid directory.', 'devbench' ) );
+		}
+
+		if ( empty( $file['tmp_name'] ) || ! is_uploaded_file( $file['tmp_name'] ) ) {
+			return new WP_Error( 'invalid_upload', __( 'No valid upload was received.', 'devbench' ) );
+		}
+		if ( ! empty( $file['error'] ) ) {
+			return new WP_Error( 'upload_error', __( 'The upload did not complete.', 'devbench' ) );
+		}
+
+		$name = sanitize_file_name( $file['name'] );
+		if ( ! $name ) {
+			return new WP_Error( 'invalid', __( 'Invalid file name.', 'devbench' ) );
+		}
+
+		$ext = strtolower( pathinfo( $name, PATHINFO_EXTENSION ) );
+		if ( $ext && ! in_array( $ext, self::ALLOWED_UPLOAD, true ) ) {
+			/* translators: %s: file extension, without the leading dot. */
+			return new WP_Error( 'type', sprintf( __( 'File type .%s is not allowed.', 'devbench' ), $ext ) );
+		}
+
+		// For types WordPress knows, reject a name whose contents do not match it.
+		$checked = wp_check_filetype_and_ext( $file['tmp_name'], $name );
+		if ( ! empty( $checked['proper_filename'] ) && $checked['proper_filename'] !== $name ) {
+			return new WP_Error( 'type_mismatch', __( 'The file contents do not match its extension.', 'devbench' ) );
+		}
+
 		$target = $dir . '/' . $name;
-		return move_uploaded_file( $file['tmp_name'], $target ) ? true : new WP_Error( 'failed', 'Upload failed.' );
+		if ( DevBench_FS::exists( $target ) ) {
+			return new WP_Error( 'exists', __( 'A file with that name already exists.', 'devbench' ) );
+		}
+
+		return DevBench_FS::move( $file['tmp_name'], $target );
 	}
 
+	/* ---------------- AJAX ---------------- */
+
 	public static function handle_ajax() {
-		$action = sanitize_text_field( $_POST['sub_action'] ?? '' );
-		$reply  = function ( $r, $extra = [] ) {
-			if ( is_wp_error( $r ) ) wp_send_json_error( $r->get_error_message() );
-			wp_send_json_success( is_array( $r ) ? $r : $extra );
+		check_ajax_referer( 'devbench_nonce', 'nonce' );
+		if ( ! DevBench_Helpers::can_manage() ) {
+			wp_send_json_error( __( 'Permission denied.', 'devbench' ), 403 );
+		}
+
+		$action   = isset( $_POST['sub_action'] ) ? sanitize_key( wp_unslash( $_POST['sub_action'] ) ) : '';
+		$path     = isset( $_POST['path'] ) ? sanitize_text_field( wp_unslash( $_POST['path'] ) ) : '';
+		$name     = isset( $_POST['name'] ) ? sanitize_file_name( wp_unslash( $_POST['name'] ) ) : '';
+		$new_name = isset( $_POST['new_name'] ) ? sanitize_file_name( wp_unslash( $_POST['new_name'] ) ) : '';
+		$src      = isset( $_POST['src'] ) ? sanitize_text_field( wp_unslash( $_POST['src'] ) ) : '';
+		$dest_dir = isset( $_POST['dest_dir'] ) ? sanitize_text_field( wp_unslash( $_POST['dest_dir'] ) ) : '';
+
+		$reply = static function ( $result ) {
+			if ( is_wp_error( $result ) ) {
+				wp_send_json_error( $result->get_error_message() );
+			}
+			wp_send_json_success( is_array( $result ) ? $result : array() );
 		};
 
 		switch ( $action ) {
 			case 'list':
-				$reply( self::list_dir( sanitize_text_field( $_POST['path'] ?? '/' ) ) );
+				$reply( self::list_dir( '' === $path ? '/' : $path ) );
 				break;
+
 			case 'read':
-				$reply( self::read_file( sanitize_text_field( $_POST['path'] ?? '' ) ) );
+				$reply( self::read_file( $path ) );
 				break;
+
 			case 'write':
-				$reply( self::write_file( sanitize_text_field( $_POST['path'] ?? '' ), wp_unslash( $_POST['content'] ?? '' ) ) );
+				// File bodies are stored verbatim; sanitizing would corrupt source code.
+				$content = isset( $_POST['content'] ) ? wp_unslash( $_POST['content'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Raw file contents by design; write access is gated by capability, nonce and DISALLOW_FILE_EDIT.
+				$reply( self::write_file( $path, $content ) );
 				break;
+
 			case 'create_file':
-				$reply( self::create_file( sanitize_text_field( $_POST['path'] ?? '' ), $_POST['name'] ?? '' ) );
+				$reply( self::create_file( $path, $name ) );
 				break;
+
 			case 'mkdir':
-				$reply( self::create_dir( sanitize_text_field( $_POST['path'] ?? '' ), $_POST['name'] ?? '' ) );
+				$reply( self::create_dir( $path, $name ) );
 				break;
+
 			case 'delete':
-				$reply( self::delete( sanitize_text_field( $_POST['path'] ?? '' ) ) );
+				$reply( self::delete( $path ) );
 				break;
+
 			case 'rename':
-				$reply( self::rename( sanitize_text_field( $_POST['path'] ?? '' ), $_POST['new_name'] ?? '' ) );
+				$reply( self::rename( $path, $new_name ) );
 				break;
+
 			case 'chmod':
-				$reply( self::chmod_item( sanitize_text_field( $_POST['path'] ?? '' ), sanitize_text_field( $_POST['mode'] ?? '' ) ) );
+				$mode = isset( $_POST['mode'] ) ? sanitize_text_field( wp_unslash( $_POST['mode'] ) ) : '';
+				$reply( self::chmod_item( $path, $mode ) );
 				break;
+
 			case 'copy':
-				$reply( self::copy_item( sanitize_text_field( $_POST['src'] ?? '' ), sanitize_text_field( $_POST['dest_dir'] ?? '' ), $_POST['new_name'] ?? '' ) );
+				$reply( self::copy_item( $src, $dest_dir, $new_name ) );
 				break;
+
 			case 'move':
-				$reply( self::move_item( sanitize_text_field( $_POST['src'] ?? '' ), sanitize_text_field( $_POST['dest_dir'] ?? '' ), $_POST['new_name'] ?? '' ) );
+				$reply( self::move_item( $src, $dest_dir, $new_name ) );
 				break;
+
 			case 'bulk_delete':
-				$reply( self::bulk_delete( (array) ( $_POST['paths'] ?? [] ) ) );
+				$paths = isset( $_POST['paths'] ) ? array_map( 'sanitize_text_field', wp_unslash( (array) $_POST['paths'] ) ) : array();
+				$reply( self::bulk_delete( $paths ) );
 				break;
+
 			case 'search':
-				wp_send_json_success( self::search_dir( sanitize_text_field( $_POST['path'] ?? '/' ), sanitize_text_field( $_POST['query'] ?? '' ) ) );
+				$query = isset( $_POST['query'] ) ? sanitize_text_field( wp_unslash( $_POST['query'] ) ) : '';
+				wp_send_json_success( self::search_dir( '' === $path ? '/' : $path, $query ) );
 				break;
+
 			case 'upload':
-				if ( empty( $_FILES['file'] ) ) wp_send_json_error( 'No file received.' );
-				$reply( self::upload( sanitize_text_field( $_POST['path'] ?? '' ), $_FILES['file'] ) );
+				if ( empty( $_FILES['file'] ) || ! isset( $_FILES['file']['tmp_name'] ) ) {
+					wp_send_json_error( __( 'No file received.', 'devbench' ) );
+				}
+				$upload = array(
+					'name'     => isset( $_FILES['file']['name'] ) ? sanitize_file_name( wp_unslash( $_FILES['file']['name'] ) ) : '',
+					'tmp_name' => sanitize_text_field( wp_unslash( $_FILES['file']['tmp_name'] ) ),
+					'error'    => isset( $_FILES['file']['error'] ) ? absint( wp_unslash( $_FILES['file']['error'] ) ) : 0,
+				);
+				$reply( self::upload( $path, $upload ) );
 				break;
 		}
+
 		wp_die();
 	}
 }

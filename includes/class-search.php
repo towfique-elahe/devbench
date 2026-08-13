@@ -1,270 +1,288 @@
 <?php
+/**
+ * Search & Locator: keyword search across install files and database tables.
+ *
+ * Both searches run in two phases so the browser can show real progress and so
+ * no single request has to scan everything: phase one enumerates the work
+ * (file paths / table names), phase two scans one batch per request.
+ *
+ * @package DevBench
+ */
+
 defined( 'ABSPATH' ) || exit;
 
 class DevBench_Search {
 
-	const SKIP_DIRS = [ '.git', 'node_modules', '.svn', 'vendor', 'uploads', 'cache' ];
-	const SKIP_EXT  = [ 'jpg','jpeg','png','gif','webp','ico','mp3','mp4','zip','gz','tar','woff','woff2','ttf','otf','pdf','exe','bin','so','dll' ];
-	const MAX_FILE  = 2097152; // 2 MB
-	const MAX_HITS  = 200;
+	const SKIP_DIRS   = array( '.git', 'node_modules', '.svn', 'vendor', 'uploads', 'cache' );
+	const SKIP_EXT    = array( 'jpg', 'jpeg', 'png', 'gif', 'webp', 'ico', 'mp3', 'mp4', 'zip', 'gz', 'tar', 'woff', 'woff2', 'ttf', 'otf', 'pdf', 'exe', 'bin', 'so', 'dll' );
+	const MAX_FILE    = 2097152; // 2 MB.
+	const MAX_MATCHES = 15;      // Matching lines kept per file.
+	const ROW_LIMIT   = 25;      // Matching rows kept per table.
 
-	public static function files( $keyword, $extensions = [] ) {
-		if ( strlen( $keyword ) < 2 ) return [];
-		$base    = realpath( ABSPATH );
-		$results = [];
-		$count   = 0;
-		$exts    = array_filter( array_map( 'strtolower', array_map( 'trim', $extensions ) ) );
-
-		$iter = new RecursiveIteratorIterator(
-			new RecursiveDirectoryIterator( $base, RecursiveDirectoryIterator::SKIP_DOTS ),
-			RecursiveIteratorIterator::SELF_FIRST
-		);
-
-		foreach ( $iter as $file ) {
-			if ( $count >= self::MAX_HITS ) break;
-			if ( ! $file->isFile() ) continue;
-			$path = $file->getPathname();
-
-			foreach ( self::SKIP_DIRS as $skip ) {
-				if ( strpos( $path, DIRECTORY_SEPARATOR . $skip . DIRECTORY_SEPARATOR ) !== false ) continue 2;
-			}
-			$ext = strtolower( $file->getExtension() );
-			if ( $exts && ! in_array( $ext, $exts, true ) ) continue;
-			if ( ! $exts && in_array( $ext, self::SKIP_EXT, true ) ) continue;
-			if ( $file->getSize() > self::MAX_FILE ) continue;
-
-			$content = @file_get_contents( $path );
-			if ( $content === false || stripos( $content, $keyword ) === false ) continue;
-
-			$matches = [];
-			$lines   = explode( "\n", $content );
-			foreach ( $lines as $n => $line ) {
-				if ( stripos( $line, $keyword ) !== false ) {
-					$t = trim( $line );
-					$matches[] = [ 'line' => $n + 1, 'text' => mb_strlen( $t ) > 240 ? mb_substr( $t, 0, 240 ) . '…' : $t ];
-					if ( count( $matches ) >= 15 ) break;
-				}
-			}
-			if ( ! $matches ) continue;
-			$results[] = [
-				'path'    => DevBench_Helpers::relative_path( $path ),
-				'name'    => $file->getFilename(),
-				'ext'     => $ext,
-				'count'   => count( $matches ),
-				'matches' => $matches,
-			];
-			$count++;
-		}
-		usort( $results, fn( $a, $b ) => $b['count'] <=> $a['count'] );
-		return $results;
-	}
-
-	public static function database( $keyword, $tables = [] ) {
-		global $wpdb;
-		if ( strlen( $keyword ) < 2 ) return [];
-		$all  = $wpdb->get_col( 'SHOW TABLES' );
-		$scan = $tables ? array_intersect( $tables, $all ) : $all;
-		$like = '%' . $wpdb->esc_like( $keyword ) . '%';
-		$out  = [];
-
-		foreach ( $scan as $table ) {
-			$cols = $wpdb->get_results( "DESCRIBE `{$table}`", ARRAY_A );
-			$text = [];
-			foreach ( $cols as $c ) {
-				$type = strtolower( $c['Type'] );
-				if ( strpos( $type, 'char' ) !== false || strpos( $type, 'text' ) !== false ) {
-					$text[] = $c['Field'];
-				}
-			}
-			if ( ! $text ) continue;
-
-			$where = implode( ' OR ', array_map( fn( $c ) => "`{$c}` LIKE %s", $text ) );
-			$args  = array_fill( 0, count( $text ), $like );
-			$total = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM `{$table}` WHERE {$where}", $args ) );
-			if ( ! $total ) continue;
-
-			$rows = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM `{$table}` WHERE {$where} LIMIT 25", $args ), ARRAY_A );
-			$hits = [];
-			foreach ( $rows as $row ) {
-				$pk    = array_key_first( $row );
-				$cells = [];
-				foreach ( $row as $col => $val ) {
-					if ( $val !== null && stripos( $val, $keyword ) !== false ) {
-						$plain = trim( strip_tags( $val ) );
-						$pos   = stripos( $plain, $keyword );
-						$start = max( 0, $pos - 50 );
-						$snip  = mb_substr( $plain, $start, 150 );
-						$cells[] = [ 'col' => $col, 'snippet' => ( $start > 0 ? '…' : '' ) . $snip ];
-					}
-				}
-				if ( $cells ) $hits[] = [ 'id' => $row[ $pk ], 'cells' => $cells ];
-			}
-			if ( $hits ) {
-				$out[] = [ 'table' => $table, 'total' => $total, 'shown' => count( $hits ), 'hits' => $hits ];
-			}
-		}
-		return $out;
-	}
+	/* ---------------- Files ---------------- */
 
 	/**
-	 * Phase 1 (files): enumerate candidate files without reading their
-	 * contents. Cheap stat/extension/size filtering only — returns the list
-	 * of relative paths so the client can scan them in progress-tracked batches.
+	 * Phase 1: enumerate candidate files without reading their contents.
+	 *
+	 * Cheap stat/extension/size filtering only, so the client can scan the
+	 * result in progress-tracked batches.
+	 *
+	 * @param string[] $extensions Optional extension allowlist.
+	 * @return string[] Paths relative to ABSPATH.
 	 */
-	public static function enumerate_files( $extensions = [] ) {
-		$base  = realpath( ABSPATH );
-		$exts  = array_filter( array_map( 'strtolower', array_map( 'trim', $extensions ) ) );
-		$files = [];
+	public static function enumerate_files( $extensions = array() ) {
+		$base = realpath( ABSPATH );
+		if ( false === $base ) {
+			return array();
+		}
 
-		$iter = new RecursiveIteratorIterator(
-			new RecursiveDirectoryIterator( $base, RecursiveDirectoryIterator::SKIP_DOTS ),
-			RecursiveIteratorIterator::SELF_FIRST
-		);
+		$exts  = array_filter( array_map( 'strtolower', array_map( 'trim', (array) $extensions ) ) );
+		$files = array();
 
-		foreach ( $iter as $file ) {
-			if ( ! $file->isFile() ) continue;
-			$path = $file->getPathname();
-			foreach ( self::SKIP_DIRS as $skip ) {
-				if ( strpos( $path, DIRECTORY_SEPARATOR . $skip . DIRECTORY_SEPARATOR ) !== false ) continue 2;
+		try {
+			$iterator = new RecursiveIteratorIterator(
+				new RecursiveDirectoryIterator( $base, RecursiveDirectoryIterator::SKIP_DOTS ),
+				RecursiveIteratorIterator::SELF_FIRST
+			);
+		} catch ( Exception $e ) {
+			return array();
+		}
+
+		foreach ( $iterator as $file ) {
+			if ( ! $file->isFile() ) {
+				continue;
 			}
+			$path = $file->getPathname();
+
+			foreach ( self::SKIP_DIRS as $skip ) {
+				if ( false !== strpos( $path, DIRECTORY_SEPARATOR . $skip . DIRECTORY_SEPARATOR ) ) {
+					continue 2;
+				}
+			}
+
 			$ext = strtolower( $file->getExtension() );
-			if ( $exts && ! in_array( $ext, $exts, true ) ) continue;
-			if ( ! $exts && in_array( $ext, self::SKIP_EXT, true ) ) continue;
-			if ( $file->getSize() > self::MAX_FILE ) continue;
+			if ( $exts && ! in_array( $ext, $exts, true ) ) {
+				continue;
+			}
+			if ( ! $exts && in_array( $ext, self::SKIP_EXT, true ) ) {
+				continue;
+			}
+			if ( $file->getSize() > self::MAX_FILE ) {
+				continue;
+			}
+
 			$files[] = DevBench_Helpers::relative_path( $path );
 		}
+
 		return $files;
 	}
 
 	/**
-	 * Phase 2 (files): search the keyword within a specific set of files
-	 * (a batch of relative paths produced by enumerate_files()).
+	 * Phase 2: search a keyword within one batch of files.
+	 *
+	 * @param string   $keyword Search term.
+	 * @param string[] $paths   Relative paths from enumerate_files().
 	 */
 	public static function scan_files_batch( $keyword, $paths ) {
-		if ( strlen( $keyword ) < 2 ) return [];
-		$results = [];
+		if ( strlen( $keyword ) < 2 ) {
+			return array();
+		}
 
-		foreach ( (array) $paths as $rel ) {
-			$abs = DevBench_Helpers::safe_path( $rel );
-			if ( ! $abs || ! is_file( $abs ) ) continue;
-			if ( filesize( $abs ) > self::MAX_FILE ) continue;
+		$results = array();
 
-			$content = @file_get_contents( $abs );
-			if ( $content === false || stripos( $content, $keyword ) === false ) continue;
+		foreach ( (array) $paths as $relative ) {
+			$abs = DevBench_Helpers::safe_path( $relative );
+			if ( ! $abs || ! DevBench_FS::is_file( $abs ) ) {
+				continue;
+			}
+			if ( DevBench_FS::size( $abs ) > self::MAX_FILE ) {
+				continue;
+			}
 
-			$matches = [];
-			$lines   = explode( "\n", $content );
-			foreach ( $lines as $n => $line ) {
-				if ( stripos( $line, $keyword ) !== false ) {
-					$t = trim( $line );
-					$matches[] = [ 'line' => $n + 1, 'text' => mb_strlen( $t ) > 240 ? mb_substr( $t, 0, 240 ) . '…' : $t ];
-					if ( count( $matches ) >= 15 ) break;
+			$content = DevBench_FS::read( $abs );
+			if ( false === $content || false === stripos( $content, $keyword ) ) {
+				continue;
+			}
+
+			$matches = array();
+			foreach ( explode( "\n", $content ) as $number => $line ) {
+				if ( false === stripos( $line, $keyword ) ) {
+					continue;
+				}
+				$text      = trim( $line );
+				$matches[] = array(
+					'line' => $number + 1,
+					'text' => mb_strlen( $text ) > 240 ? mb_substr( $text, 0, 240 ) . '…' : $text,
+				);
+				if ( count( $matches ) >= self::MAX_MATCHES ) {
+					break;
 				}
 			}
-			if ( ! $matches ) continue;
-			$results[] = [
-				'path'    => $rel,
-				'name'    => basename( $rel ),
-				'ext'     => strtolower( pathinfo( $rel, PATHINFO_EXTENSION ) ),
+
+			if ( ! $matches ) {
+				continue;
+			}
+
+			$results[] = array(
+				'path'    => $relative,
+				'name'    => basename( $relative ),
+				'ext'     => strtolower( pathinfo( $relative, PATHINFO_EXTENSION ) ),
 				'count'   => count( $matches ),
 				'matches' => $matches,
-			];
+			);
 		}
+
 		return $results;
 	}
 
-	/** Phase 1 (database): the list of tables that will be scanned. */
-	public static function db_scan_list( $tables = [] ) {
-		global $wpdb;
-		$all = $wpdb->get_col( 'SHOW TABLES' );
-		return $tables ? array_values( array_intersect( $tables, $all ) ) : $all;
+	/* ---------------- Database ---------------- */
+
+	/**
+	 * Phase 1: the list of tables that will be scanned.
+	 *
+	 * @param string[] $tables Optional subset; anything not a real table is dropped.
+	 */
+	public static function db_scan_list( $tables = array() ) {
+		$all = DevBench_Database::table_names();
+		return $tables ? array_values( array_intersect( $tables, $all ) ) : array_values( $all );
 	}
 
-	/** Phase 2 (database): scan a single table; returns one result row or null. */
+	/**
+	 * Phase 2: scan a single table.
+	 *
+	 * @return array|null One result row, or null when nothing matched.
+	 */
 	public static function scan_table( $keyword, $table ) {
 		global $wpdb;
-		if ( strlen( $keyword ) < 2 ) return null;
-		if ( ! in_array( $table, $wpdb->get_col( 'SHOW TABLES' ), true ) ) return null;
 
-		$cols = $wpdb->get_results( "DESCRIBE `{$table}`", ARRAY_A );
-		$text = [];
-		foreach ( $cols as $c ) {
-			$type = strtolower( $c['Type'] );
-			if ( strpos( $type, 'char' ) !== false || strpos( $type, 'text' ) !== false ) {
-				$text[] = $c['Field'];
+		if ( strlen( $keyword ) < 2 ) {
+			return null;
+		}
+		if ( ! DevBench_Database::valid_table( $table ) ) {
+			return null;
+		}
+
+		$structure = DevBench_Database::structure( $table );
+		if ( is_wp_error( $structure ) ) {
+			return null;
+		}
+
+		// Only text-ish columns are worth a LIKE scan.
+		$columns = array();
+		foreach ( (array) $structure as $column ) {
+			$type = strtolower( $column['Type'] );
+			if ( false !== strpos( $type, 'char' ) || false !== strpos( $type, 'text' ) ) {
+				$columns[] = $column['Field'];
 			}
 		}
-		if ( ! $text ) return null;
+		if ( ! $columns ) {
+			return null;
+		}
 
-		$like  = '%' . $wpdb->esc_like( $keyword ) . '%';
-		$where = implode( ' OR ', array_map( fn( $c ) => "`{$c}` LIKE %s", $text ) );
-		$args  = array_fill( 0, count( $text ), $like );
-		$total = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM `{$table}` WHERE {$where}", $args ) );
-		if ( ! $total ) return null;
+		$like = '%' . $wpdb->esc_like( $keyword ) . '%';
 
-		$rows = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM `{$table}` WHERE {$where} LIMIT 25", $args ), ARRAY_A );
-		$hits = [];
-		foreach ( $rows as $row ) {
-			$pk    = array_key_first( $row );
-			$cells = [];
-			foreach ( $row as $col => $val ) {
-				if ( $val !== null && stripos( $val, $keyword ) !== false ) {
-					$plain = trim( strip_tags( $val ) );
-					$pos   = stripos( $plain, $keyword );
-					$start = max( 0, $pos - 50 );
-					$snip  = mb_substr( $plain, $start, 150 );
-					$cells[] = [ 'col' => $col, 'snippet' => ( $start > 0 ? '…' : '' ) . $snip ];
+		// The WHERE fragment is the literal '%i LIKE %s' repeated once per
+		// column; every identifier and value is bound through prepare() below.
+		$fragment = implode( ' OR ', array_fill( 0, count( $columns ), '%i LIKE %s' ) );
+
+		$args = array( $table );
+		foreach ( $columns as $column ) {
+			$args[] = $column;
+			$args[] = $like;
+		}
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $fragment contains only repeated literal placeholders; all identifiers and values are bound via prepare().
+		$total = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM %i WHERE ' . $fragment, $args ) );
+		if ( ! $total ) {
+			return null;
+		}
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- See above; the row limit is a literal.
+		$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM %i WHERE ' . $fragment . ' LIMIT ' . self::ROW_LIMIT, $args ), ARRAY_A );
+
+		$hits = array();
+		foreach ( (array) $rows as $row ) {
+			$primary = array_key_first( $row );
+			$cells   = array();
+
+			foreach ( $row as $column => $value ) {
+				if ( null === $value || false === stripos( (string) $value, $keyword ) ) {
+					continue;
 				}
+				$plain   = trim( wp_strip_all_tags( (string) $value ) );
+				$start   = max( 0, stripos( $plain, $keyword ) - 50 );
+				$cells[] = array(
+					'col'     => $column,
+					'snippet' => ( $start > 0 ? '…' : '' ) . mb_substr( $plain, $start, 150 ),
+				);
 			}
-			if ( $cells ) $hits[] = [ 'id' => $row[ $pk ], 'cells' => $cells ];
+
+			if ( $cells ) {
+				$hits[] = array(
+					'id'    => $row[ $primary ],
+					'cells' => $cells,
+				);
+			}
 		}
-		return $hits ? [ 'table' => $table, 'total' => $total, 'shown' => count( $hits ), 'hits' => $hits ] : null;
+
+		if ( ! $hits ) {
+			return null;
+		}
+
+		return array(
+			'table' => $table,
+			'total' => $total,
+			'shown' => count( $hits ),
+			'hits'  => $hits,
+		);
 	}
 
+	/* ---------------- AJAX ---------------- */
+
 	public static function handle_ajax() {
-		$action = sanitize_text_field( $_POST['sub_action'] ?? '' );
+		check_ajax_referer( 'devbench_nonce', 'nonce' );
+		if ( ! DevBench_Helpers::can_manage() ) {
+			wp_send_json_error( __( 'Permission denied.', 'devbench' ), 403 );
+		}
+
+		$action  = isset( $_POST['sub_action'] ) ? sanitize_key( wp_unslash( $_POST['sub_action'] ) ) : '';
+		$keyword = isset( $_POST['keyword'] ) ? sanitize_text_field( wp_unslash( $_POST['keyword'] ) ) : '';
+
 		switch ( $action ) {
-			case 'files':
-				$r = self::files(
-					sanitize_text_field( wp_unslash( $_POST['keyword'] ?? '' ) ),
-					array_map( 'sanitize_text_field', (array) ( $_POST['extensions'] ?? [] ) )
-				);
-				wp_send_json_success( [ 'results' => $r, 'total' => count( $r ) ] );
-				break;
-			case 'database':
-				$r = self::database(
-					sanitize_text_field( wp_unslash( $_POST['keyword'] ?? '' ) ),
-					array_map( 'sanitize_text_field', (array) ( $_POST['tables'] ?? [] ) )
-				);
-				wp_send_json_success( [ 'results' => $r, 'total' => count( $r ) ] );
-				break;
 			case 'enumerate':
-				$files = self::enumerate_files(
-					array_map( 'sanitize_text_field', (array) ( $_POST['extensions'] ?? [] ) )
+				$extensions = isset( $_POST['extensions'] ) ? array_map( 'sanitize_key', wp_unslash( (array) $_POST['extensions'] ) ) : array();
+				$files      = self::enumerate_files( $extensions );
+				wp_send_json_success(
+					array(
+						'files' => $files,
+						'total' => count( $files ),
+					)
 				);
-				wp_send_json_success( [ 'files' => $files, 'total' => count( $files ) ] );
 				break;
+
 			case 'scan_batch':
-				$r = self::scan_files_batch(
-					sanitize_text_field( wp_unslash( $_POST['keyword'] ?? '' ) ),
-					array_map( 'sanitize_text_field', wp_unslash( (array) ( $_POST['paths'] ?? [] ) ) )
-				);
-				wp_send_json_success( [ 'results' => $r ] );
+				$paths   = isset( $_POST['paths'] ) ? array_map( 'sanitize_text_field', wp_unslash( (array) $_POST['paths'] ) ) : array();
+				$results = self::scan_files_batch( $keyword, $paths );
+				wp_send_json_success( array( 'results' => $results ) );
 				break;
+
 			case 'db_tables':
-				$t = self::db_scan_list(
-					array_map( 'sanitize_text_field', (array) ( $_POST['tables'] ?? [] ) )
+				$tables = isset( $_POST['tables'] ) ? array_map( 'sanitize_text_field', wp_unslash( (array) $_POST['tables'] ) ) : array();
+				$list   = self::db_scan_list( $tables );
+				wp_send_json_success(
+					array(
+						'tables' => $list,
+						'total'  => count( $list ),
+					)
 				);
-				wp_send_json_success( [ 'tables' => $t, 'total' => count( $t ) ] );
 				break;
+
 			case 'scan_table':
-				$r = self::scan_table(
-					sanitize_text_field( wp_unslash( $_POST['keyword'] ?? '' ) ),
-					sanitize_text_field( wp_unslash( $_POST['table'] ?? '' ) )
-				);
-				wp_send_json_success( [ 'result' => $r ] );
+				$table = isset( $_POST['table'] ) ? sanitize_text_field( wp_unslash( $_POST['table'] ) ) : '';
+				wp_send_json_success( array( 'result' => self::scan_table( $keyword, $table ) ) );
 				break;
 		}
+
 		wp_die();
 	}
 }

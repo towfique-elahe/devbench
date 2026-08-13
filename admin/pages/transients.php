@@ -1,18 +1,18 @@
 <?php
 defined( 'ABSPATH' ) || exit;
-$page_id = 'devbench-transients';
-include __DIR__ . '/_header.php';
+$devbench_page_id = 'devbench-transients';
+require __DIR__ . '/_header.php';
 ?>
 <div class="db-page-head">
-	<h1><?php echo DevBench_Helpers::icon('clock',22); ?> Transients</h1>
+	<h1><?php DevBench_Helpers::the_icon('clock',22); ?> Transients</h1>
 	<p>Inspect cached transients, spot expired entries, and clear them to free space.</p>
 </div>
 
 <div class="db-card">
 	<div class="db-card-head">
-		<h3 class="db-card-title"><?php echo DevBench_Helpers::icon('clock',16); ?> Stored Transients <span class="db-badge db-badge-gray" id="db-tr-count">—</span></h3>
+		<h3 class="db-card-title"><?php DevBench_Helpers::the_icon('clock',16); ?> Stored Transients <span class="db-badge db-badge-gray" id="db-tr-count">—</span></h3>
 		<div class="db-flex db-gap-8">
-			<button class="db-btn db-btn-ghost db-btn-sm" id="db-tr-refresh"><?php echo DevBench_Helpers::icon('refresh',14); ?> Refresh</button>
+			<button class="db-btn db-btn-ghost db-btn-sm" id="db-tr-refresh"><?php DevBench_Helpers::the_icon('refresh',14); ?> Refresh</button>
 			<button class="db-btn db-btn-danger db-btn-sm" id="db-tr-clear">Clear Expired</button>
 		</div>
 	</div>
@@ -56,4 +56,4 @@ window.DBPages['devbench-transients'] = function () {
 };
 </script>
 
-<?php include __DIR__ . '/_footer.php'; ?>
+<?php require __DIR__ . '/_footer.php'; ?>

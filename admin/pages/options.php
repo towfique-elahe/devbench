@@ -1,10 +1,10 @@
 <?php
 defined( 'ABSPATH' ) || exit;
-$page_id = 'devbench-options';
-include __DIR__ . '/_header.php';
+$devbench_page_id = 'devbench-options';
+require __DIR__ . '/_header.php';
 ?>
 <div class="db-page-head">
-	<h1><?php echo DevBench_Helpers::icon('list',22); ?> Options Manager</h1>
+	<h1><?php DevBench_Helpers::the_icon('list',22); ?> Options Manager</h1>
 	<p>Browse, edit, and delete entries in the <code>wp_options</code> table. Sorted by value size to surface bloat.</p>
 </div>
 
@@ -87,4 +87,4 @@ window.DBPages['devbench-options'] = function () {
 };
 </script>
 
-<?php include __DIR__ . '/_footer.php'; ?>
+<?php require __DIR__ . '/_footer.php'; ?>

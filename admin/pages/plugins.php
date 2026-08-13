@@ -1,10 +1,10 @@
 <?php
 defined( 'ABSPATH' ) || exit;
-$page_id = 'devbench-plugins';
-include __DIR__ . '/_header.php';
+$devbench_page_id = 'devbench-plugins';
+require __DIR__ . '/_header.php';
 ?>
 <div class="db-page-head">
-	<h1><?php echo DevBench_Helpers::icon('plug',22); ?> Plugins &amp; Themes</h1>
+	<h1><?php DevBench_Helpers::the_icon('plug',22); ?> Plugins &amp; Themes</h1>
 	<p>Activate or deactivate plugins and switch the active theme from one place.</p>
 </div>
 
@@ -15,7 +15,7 @@ include __DIR__ . '/_header.php';
 
 <div id="db-pt-plugins">
 	<div class="db-card db-mb-0">
-		<div class="db-card-head"><h3 class="db-card-title"><?php echo DevBench_Helpers::icon('plug',16); ?> Installed Plugins <span class="db-badge db-badge-gray" id="db-pl-count">—</span></h3></div>
+		<div class="db-card-head"><h3 class="db-card-title"><?php DevBench_Helpers::the_icon('plug',16); ?> Installed Plugins <span class="db-badge db-badge-gray" id="db-pl-count">—</span></h3></div>
 		<div class="db-card-body flush"><div class="db-table-wrap"><table class="db-table">
 			<thead><tr><th>Plugin</th><th style="width:100px">Version</th><th style="width:110px">Status</th><th style="width:140px">Action</th></tr></thead>
 			<tbody id="db-pl-rows"><tr><td colspan="4" style="padding:24px;text-align:center"><span class="db-spinner"></span></td></tr></tbody>
@@ -89,4 +89,4 @@ window.DBPages['devbench-plugins'] = function () {
 };
 </script>
 
-<?php include __DIR__ . '/_footer.php'; ?>
+<?php require __DIR__ . '/_footer.php'; ?>

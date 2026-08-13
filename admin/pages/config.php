@@ -1,23 +1,22 @@
 <?php
 defined( 'ABSPATH' ) || exit;
-$page_id = 'devbench-config';
-$cfg = DevBench_Helpers::wp_config_path();
-$writable = $cfg && is_writable( $cfg );
-include __DIR__ . '/_header.php';
+$devbench_page_id  = 'devbench-config';
+$devbench_writable = DevBench_Helpers::config_writable();
+require __DIR__ . '/_header.php';
 ?>
 <div class="db-page-head">
-	<h1><?php echo DevBench_Helpers::icon('sliders',22); ?> WP Config Editor</h1>
+	<h1><?php DevBench_Helpers::the_icon('sliders',22); ?> WP Config Editor</h1>
 	<p>Manage constants defined in <code>wp-config.php</code> safely, without a text editor.</p>
 </div>
 
-<?php if ( ! $writable ) : ?>
-<div class="db-alert db-alert-warn"><?php echo DevBench_Helpers::icon('info',17); ?><div><strong>wp-config.php is not writable.</strong> You can view constants but not change them.</div></div>
+<?php if ( ! $devbench_writable ) : ?>
+<div class="db-alert db-alert-warn"><?php DevBench_Helpers::the_icon('info',17); ?><div><strong>wp-config.php is not writable.</strong> You can view constants but not change them.</div></div>
 <?php endif; ?>
 
 <div class="db-card">
 	<div class="db-card-head">
-		<h3 class="db-card-title"><?php echo DevBench_Helpers::icon('code',16); ?> Defined Constants</h3>
-		<button class="db-btn db-btn-primary db-btn-sm" id="db-cfg-add" <?php disabled( ! $writable ); ?>>+ Add Constant</button>
+		<h3 class="db-card-title"><?php DevBench_Helpers::the_icon('code',16); ?> Defined Constants</h3>
+		<button class="db-btn db-btn-primary db-btn-sm" id="db-cfg-add" <?php disabled( ! $devbench_writable ); ?>>+ Add Constant</button>
 	</div>
 	<div class="db-card-body flush"><div class="db-table-wrap"><table class="db-table">
 		<thead><tr><th>Name</th><th>Value</th><th style="width:90px">Type</th><th style="width:160px">Actions</th></tr></thead>
@@ -43,7 +42,7 @@ include __DIR__ . '/_header.php';
 
 <script>
 window.DBPages['devbench-config'] = function () {
-	var $ = jQuery, writable = <?php echo $writable ? 'true' : 'false'; ?>;
+	var $ = jQuery, writable = <?php echo $devbench_writable ? 'true' : 'false'; ?>;
 
 	function load() {
 		DBAjax('extra', 'config_list').done(function (r) {
@@ -57,7 +56,11 @@ window.DBPages['devbench-config'] = function () {
 					+ '<td class="db-mono" style="' + vColor + ';max-width:360px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + DBEsc(c.value) + '</td>'
 					+ '<td><span class="db-badge ' + badge + '">' + c.type + '</span></td>'
 					+ '<td><div class="db-flex db-gap-8">'
-					+ (writable ? '<button class="db-btn db-btn-xs db-cfg-edit" data-name="' + DBEsc(c.name) + '" data-value="' + DBEsc(c.value) + '" data-type="' + c.type + '">Edit</button><button class="db-btn db-btn-xs db-btn-danger db-cfg-del" data-name="' + DBEsc(c.name) + '">Delete</button>' : '<span class="db-muted" style="font-size:12px">read-only</span>')
+					+ (c.protected
+						? '<span class="db-muted" style="font-size:12px">protected</span>'
+						: (writable
+							? '<button class="db-btn db-btn-xs db-cfg-edit" data-name="' + DBEsc(c.name) + '" data-value="' + DBEsc(c.value) + '" data-type="' + c.type + '">Edit</button><button class="db-btn db-btn-xs db-btn-danger db-cfg-del" data-name="' + DBEsc(c.name) + '">Delete</button>'
+							: '<span class="db-muted" style="font-size:12px">read-only</span>'))
 					+ '</div></td></tr>';
 			});
 			$('#db-cfg-rows').html(h);
@@ -93,4 +96,4 @@ window.DBPages['devbench-config'] = function () {
 };
 </script>
 
-<?php include __DIR__ . '/_footer.php'; ?>
+<?php require __DIR__ . '/_footer.php'; ?>

@@ -1,289 +1,357 @@
 <?php
+/**
+ * Dashboard: a snapshot of the development environment.
+ *
+ * @package DevBench
+ */
+
 defined( 'ABSPATH' ) || exit;
-$page_id = 'devbench';
-global $wpdb;
 
-$php_v       = PHP_VERSION;
-$wp_v        = get_bloginfo( 'version' );
-$mysql_v     = $wpdb->db_version();
-$debug_on    = defined( 'WP_DEBUG' ) && WP_DEBUG;
-$debug_log   = defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG;
-$log_size    = DevBench_Debug::log_size();
-$tables      = $wpdb->get_col( 'SHOW TABLES' );
-$plugins     = (array) get_option( 'active_plugins', [] );
-$autoload    = DevBench_Tools::autoload_size();
-$mail_log    = get_option( 'devbench_mail_log', [] );
-$notes       = get_option( 'devbench_notes', [] );
-$mail_on     = (bool) get_option( 'devbench_mail_catcher', false );
+$devbench_page_id = 'devbench';
+$devbench_stats   = DevBench_Reports::dashboard();
 
-$mem_limit   = ini_get( 'memory_limit' );
-$mem_used    = memory_get_usage( true );
-$mem_limit_b = DevBench_Helpers::to_bytes( $mem_limit );
-$mem_pct     = $mem_limit_b > 0 ? round( $mem_used / $mem_limit_b * 100 ) : 0;
-
-$disk_free   = @disk_free_space( ABSPATH );
-$disk_total  = @disk_total_space( ABSPATH );
-$disk_pct    = $disk_total ? round( ( 1 - $disk_free / $disk_total ) * 100 ) : 0;
-
-$post_count  = (int) wp_count_posts()->publish;
-$user_count  = (int) count_users()['total_users'];
-
-// Recent errors
-$recent = [];
-if ( DevBench_Debug::log_exists() ) {
-	foreach ( array_reverse( explode( "\n", DevBench_Debug::tail( 60 ) ) ) as $line ) {
-		if ( preg_match( '/PHP (Fatal|Parse|Warning|Notice|Deprecated)/i', $line ) ) {
-			$recent[] = trim( $line );
-			if ( count( $recent ) >= 5 ) break;
-		}
-	}
-}
-
-include __DIR__ . '/_header.php';
+require __DIR__ . '/_header.php';
 ?>
 <div class="db-page-head">
-    <h1><?php echo DevBench_Helpers::icon( 'dashboard', 22 ); ?> Dashboard</h1>
-    <p>A complete snapshot of your WordPress development environment.</p>
+	<h1><?php DevBench_Helpers::the_icon( 'dashboard', 22 ); ?> <?php esc_html_e( 'Dashboard', 'devbench' ); ?></h1>
+	<p><?php esc_html_e( 'A complete snapshot of your WordPress development environment.', 'devbench' ); ?></p>
 </div>
 
-<?php if ( $debug_on && ! $debug_log ) : ?>
+<?php if ( $devbench_stats['debug_on'] && ! $devbench_stats['debug_log_on'] ) : ?>
 <div class="db-alert db-alert-warn">
-    <?php echo DevBench_Helpers::icon( 'bug', 17 ); ?>
-    <div><strong>WP_DEBUG is on but WP_DEBUG_LOG is off.</strong> Errors may be shown on screen instead of logged. <a
-            href="<?php echo admin_url('admin.php?page=devbench-debug'); ?>">Open Debug Manager →</a></div>
+	<?php DevBench_Helpers::the_icon( 'bug', 17 ); ?>
+	<div>
+		<strong><?php esc_html_e( 'WP_DEBUG is on but WP_DEBUG_LOG is off.', 'devbench' ); ?></strong>
+		<?php esc_html_e( 'Errors may be shown on screen instead of logged.', 'devbench' ); ?>
+		<a href="<?php echo esc_url( admin_url( 'admin.php?page=devbench-debug' ) ); ?>"><?php esc_html_e( 'Open Debug Manager', 'devbench' ); ?> &rarr;</a>
+	</div>
 </div>
 <?php endif; ?>
-<?php if ( $autoload > 800 * 1024 ) : ?>
+
+<?php if ( $devbench_stats['autoload'] > DevBench_Reports::AUTOLOAD_WARN ) : ?>
 <div class="db-alert db-alert-error">
-    <?php echo DevBench_Helpers::icon( 'database', 17 ); ?>
-    <div><strong>High autoload size (<?php echo DevBench_Helpers::filesize( $autoload ); ?>).</strong> This loads on
-        every request and slows the whole site. <a
-            href="<?php echo admin_url('admin.php?page=devbench-options'); ?>">Review options →</a></div>
+	<?php DevBench_Helpers::the_icon( 'database', 17 ); ?>
+	<div>
+		<strong>
+			<?php
+			printf(
+				/* translators: %s: total size of autoloaded options, e.g. "1.2 MB". */
+				esc_html__( 'High autoload size (%s).', 'devbench' ),
+				esc_html( DevBench_Helpers::filesize( $devbench_stats['autoload'] ) )
+			);
+			?>
+		</strong>
+		<?php esc_html_e( 'This loads on every request and slows the whole site.', 'devbench' ); ?>
+		<a href="<?php echo esc_url( admin_url( 'admin.php?page=devbench-options' ) ); ?>"><?php esc_html_e( 'Review options', 'devbench' ); ?> &rarr;</a>
+	</div>
 </div>
 <?php endif; ?>
 
 <!-- Primary stat tiles -->
 <div class="db-grid db-grid-4" style="margin-bottom:14px">
-    <div class="db-stat">
-        <div class="db-stat-header">
-            <div class="db-stat-label">WordPress</div>
-            <div class="db-stat-icon accent"><?php echo DevBench_Helpers::icon( 'server', 15 ); ?></div>
-        </div>
-        <div class="db-stat-value"><?php echo esc_html( $wp_v ); ?></div>
-        <div class="db-stat-meta"><?php echo esc_html( get_bloginfo( 'name' ) ); ?></div>
-    </div>
-    <div class="db-stat">
-        <div class="db-stat-header">
-            <div class="db-stat-label">PHP</div>
-            <div class="db-stat-icon blue"><?php echo DevBench_Helpers::icon( 'code', 15 ); ?></div>
-        </div>
-        <div class="db-stat-value"><?php echo esc_html( $php_v ); ?></div>
-        <div class="db-stat-meta"><?php echo esc_html( php_sapi_name() ); ?></div>
-    </div>
-    <div class="db-stat">
-        <div class="db-stat-header">
-            <div class="db-stat-label">Database Tables</div>
-            <div class="db-stat-icon"><?php echo DevBench_Helpers::icon( 'database', 15 ); ?></div>
-        </div>
-        <div class="db-stat-value"><?php echo count( $tables ); ?></div>
-        <div class="db-stat-meta">MySQL <?php echo esc_html( $mysql_v ); ?></div>
-    </div>
-    <div class="db-stat">
-        <div class="db-stat-header">
-            <div class="db-stat-label">Debug Log</div>
-            <div class="db-stat-icon <?php echo $debug_on ? 'amber' : ''; ?>">
-                <?php echo DevBench_Helpers::icon( 'bug', 15 ); ?></div>
-        </div>
-        <div class="db-stat-value"><?php echo DevBench_Helpers::filesize( $log_size ); ?></div>
-        <div class="db-stat-meta">
-            <?php echo $debug_on ? '<span class="db-text-amber">Debug ON</span>' : '<span class="db-muted">Debug off</span>'; ?>
-        </div>
-    </div>
+	<div class="db-stat">
+		<div class="db-stat-header">
+			<div class="db-stat-label"><?php esc_html_e( 'WordPress', 'devbench' ); ?></div>
+			<div class="db-stat-icon accent"><?php DevBench_Helpers::the_icon( 'server', 15 ); ?></div>
+		</div>
+		<div class="db-stat-value"><?php echo esc_html( $devbench_stats['wp_version'] ); ?></div>
+		<div class="db-stat-meta"><?php echo esc_html( $devbench_stats['site_name'] ); ?></div>
+	</div>
+	<div class="db-stat">
+		<div class="db-stat-header">
+			<div class="db-stat-label"><?php esc_html_e( 'PHP', 'devbench' ); ?></div>
+			<div class="db-stat-icon blue"><?php DevBench_Helpers::the_icon( 'code', 15 ); ?></div>
+		</div>
+		<div class="db-stat-value"><?php echo esc_html( $devbench_stats['php_version'] ); ?></div>
+		<div class="db-stat-meta"><?php echo esc_html( $devbench_stats['php_sapi'] ); ?></div>
+	</div>
+	<div class="db-stat">
+		<div class="db-stat-header">
+			<div class="db-stat-label"><?php esc_html_e( 'Database Tables', 'devbench' ); ?></div>
+			<div class="db-stat-icon"><?php DevBench_Helpers::the_icon( 'database', 15 ); ?></div>
+		</div>
+		<div class="db-stat-value"><?php echo (int) $devbench_stats['table_count']; ?></div>
+		<div class="db-stat-meta"><?php echo esc_html( 'MySQL ' . $devbench_stats['mysql_version'] ); ?></div>
+	</div>
+	<div class="db-stat">
+		<div class="db-stat-header">
+			<div class="db-stat-label"><?php esc_html_e( 'Debug Log', 'devbench' ); ?></div>
+			<div class="db-stat-icon <?php echo $devbench_stats['debug_on'] ? 'amber' : ''; ?>">
+				<?php DevBench_Helpers::the_icon( 'bug', 15 ); ?>
+			</div>
+		</div>
+		<div class="db-stat-value"><?php echo esc_html( DevBench_Helpers::filesize( $devbench_stats['log_size'] ) ); ?></div>
+		<div class="db-stat-meta">
+			<?php if ( $devbench_stats['debug_on'] ) : ?>
+				<span class="db-text-amber"><?php esc_html_e( 'Debug ON', 'devbench' ); ?></span>
+			<?php else : ?>
+				<span class="db-muted"><?php esc_html_e( 'Debug off', 'devbench' ); ?></span>
+			<?php endif; ?>
+		</div>
+	</div>
 </div>
 
 <div class="db-grid db-grid-4" style="margin-bottom:18px">
-    <div class="db-stat">
-        <div class="db-stat-header">
-            <div class="db-stat-label">Active Plugins</div>
-            <div class="db-stat-icon"><?php echo DevBench_Helpers::icon( 'plug', 15 ); ?></div>
-        </div>
-        <div class="db-stat-value"><?php echo count( $plugins ); ?></div>
-    </div>
-    <div class="db-stat">
-        <div class="db-stat-header">
-            <div class="db-stat-label">Published Posts</div>
-            <div class="db-stat-icon green"><?php echo DevBench_Helpers::icon( 'note', 15 ); ?></div>
-        </div>
-        <div class="db-stat-value"><?php echo $post_count; ?></div>
-    </div>
-    <div class="db-stat">
-        <div class="db-stat-header">
-            <div class="db-stat-label">Users</div>
-            <div class="db-stat-icon"><?php echo DevBench_Helpers::icon( 'info', 15 ); ?></div>
-        </div>
-        <div class="db-stat-value"><?php echo $user_count; ?></div>
-    </div>
-    <div class="db-stat">
-        <div class="db-stat-header">
-            <div class="db-stat-label">Caught Mail</div>
-            <div class="db-stat-icon <?php echo count( $mail_log ) ? 'amber' : ''; ?>">
-                <?php echo DevBench_Helpers::icon( 'mail', 15 ); ?></div>
-        </div>
-        <div class="db-stat-value <?php echo count( $mail_log ) ? 'db-text-amber' : ''; ?>">
-            <?php echo count( $mail_log ); ?></div>
-        <div class="db-stat-meta">
-            <?php echo $mail_on ? '<span class="db-text-amber">catcher active</span>' : '<span class="db-muted">catcher off</span>'; ?>
-        </div>
-    </div>
+	<div class="db-stat">
+		<div class="db-stat-header">
+			<div class="db-stat-label"><?php esc_html_e( 'Active Plugins', 'devbench' ); ?></div>
+			<div class="db-stat-icon"><?php DevBench_Helpers::the_icon( 'plug', 15 ); ?></div>
+		</div>
+		<div class="db-stat-value"><?php echo (int) $devbench_stats['plugin_count']; ?></div>
+	</div>
+	<div class="db-stat">
+		<div class="db-stat-header">
+			<div class="db-stat-label"><?php esc_html_e( 'Published Posts', 'devbench' ); ?></div>
+			<div class="db-stat-icon green"><?php DevBench_Helpers::the_icon( 'note', 15 ); ?></div>
+		</div>
+		<div class="db-stat-value"><?php echo (int) $devbench_stats['post_count']; ?></div>
+	</div>
+	<div class="db-stat">
+		<div class="db-stat-header">
+			<div class="db-stat-label"><?php esc_html_e( 'Users', 'devbench' ); ?></div>
+			<div class="db-stat-icon"><?php DevBench_Helpers::the_icon( 'info', 15 ); ?></div>
+		</div>
+		<div class="db-stat-value"><?php echo (int) $devbench_stats['user_count']; ?></div>
+	</div>
+	<div class="db-stat">
+		<div class="db-stat-header">
+			<div class="db-stat-label"><?php esc_html_e( 'Caught Mail', 'devbench' ); ?></div>
+			<div class="db-stat-icon <?php echo $devbench_stats['mail_count'] ? 'amber' : ''; ?>">
+				<?php DevBench_Helpers::the_icon( 'mail', 15 ); ?>
+			</div>
+		</div>
+		<div class="db-stat-value <?php echo $devbench_stats['mail_count'] ? 'db-text-amber' : ''; ?>">
+			<?php echo (int) $devbench_stats['mail_count']; ?>
+		</div>
+		<div class="db-stat-meta">
+			<?php if ( $devbench_stats['mail_on'] ) : ?>
+				<span class="db-text-amber"><?php esc_html_e( 'catcher active', 'devbench' ); ?></span>
+			<?php else : ?>
+				<span class="db-muted"><?php esc_html_e( 'catcher off', 'devbench' ); ?></span>
+			<?php endif; ?>
+		</div>
+	</div>
 </div>
 
 <!-- Resource bars -->
 <div class="db-grid db-grid-2" style="margin-bottom:16px">
-    <div class="db-card db-mb-0">
-        <div class="db-card-head">
-            <h3 class="db-card-title"><?php echo DevBench_Helpers::icon( 'server', 15 ); ?> Disk Usage</h3>
-            <span class="db-muted db-text-sm"><?php echo DevBench_Helpers::filesize( $disk_free ); ?> free of
-                <?php echo DevBench_Helpers::filesize( $disk_total ); ?></span>
-        </div>
-        <div class="db-card-body">
-            <div class="db-progress">
-                <div class="db-progress-fill <?php echo $disk_pct > 85 ? 'red' : ( $disk_pct > 70 ? 'amber' : '' ); ?>"
-                    style="width:<?php echo min( $disk_pct, 100 ); ?>%"></div>
-            </div>
-            <div class="db-muted db-mt-8 db-text-sm"><?php echo $disk_pct; ?>% used</div>
-        </div>
-    </div>
-    <div class="db-card db-mb-0">
-        <div class="db-card-head">
-            <h3 class="db-card-title"><?php echo DevBench_Helpers::icon( 'zap', 15 ); ?> PHP Memory</h3>
-            <span class="db-muted db-text-sm"><?php echo DevBench_Helpers::filesize( $mem_used ); ?> /
-                <?php echo esc_html( $mem_limit ); ?></span>
-        </div>
-        <div class="db-card-body">
-            <div class="db-progress">
-                <div class="db-progress-fill <?php echo $mem_pct > 85 ? 'red' : ( $mem_pct > 60 ? 'amber' : 'green' ); ?>"
-                    style="width:<?php echo min( $mem_pct, 100 ); ?>%"></div>
-            </div>
-            <div class="db-muted db-mt-8 db-text-sm"><?php echo $mem_pct; ?>% of limit on this request</div>
-        </div>
-    </div>
+	<div class="db-card db-mb-0">
+		<div class="db-card-head">
+			<h3 class="db-card-title"><?php DevBench_Helpers::the_icon( 'server', 15 ); ?> <?php esc_html_e( 'Disk Usage', 'devbench' ); ?></h3>
+			<span class="db-muted db-text-sm">
+				<?php
+				printf(
+					/* translators: 1: free disk space, 2: total disk space. */
+					esc_html__( '%1$s free of %2$s', 'devbench' ),
+					esc_html( DevBench_Helpers::filesize( $devbench_stats['disk_free'] ) ),
+					esc_html( DevBench_Helpers::filesize( $devbench_stats['disk_total'] ) )
+				);
+				?>
+			</span>
+		</div>
+		<div class="db-card-body">
+			<div class="db-progress">
+				<?php
+				if ( $devbench_stats['disk_pct'] > 85 ) {
+					$devbench_disk_class = 'red';
+				} elseif ( $devbench_stats['disk_pct'] > 70 ) {
+					$devbench_disk_class = 'amber';
+				} else {
+					$devbench_disk_class = '';
+				}
+				?>
+				<div class="db-progress-fill <?php echo esc_attr( $devbench_disk_class ); ?>"
+					style="width:<?php echo esc_attr( min( $devbench_stats['disk_pct'], 100 ) ); ?>%"></div>
+			</div>
+			<div class="db-muted db-mt-8 db-text-sm">
+				<?php
+				printf(
+					/* translators: %d: percentage of disk in use. */
+					esc_html__( '%d%% used', 'devbench' ),
+					(int) $devbench_stats['disk_pct']
+				);
+				?>
+			</div>
+		</div>
+	</div>
+	<div class="db-card db-mb-0">
+		<div class="db-card-head">
+			<h3 class="db-card-title"><?php DevBench_Helpers::the_icon( 'zap', 15 ); ?> <?php esc_html_e( 'PHP Memory', 'devbench' ); ?></h3>
+			<span class="db-muted db-text-sm">
+				<?php echo esc_html( DevBench_Helpers::filesize( $devbench_stats['memory_used'] ) . ' / ' . $devbench_stats['memory_limit'] ); ?>
+			</span>
+		</div>
+		<div class="db-card-body">
+			<div class="db-progress">
+				<?php
+				if ( $devbench_stats['memory_pct'] > 85 ) {
+					$devbench_mem_class = 'red';
+				} elseif ( $devbench_stats['memory_pct'] > 60 ) {
+					$devbench_mem_class = 'amber';
+				} else {
+					$devbench_mem_class = 'green';
+				}
+				?>
+				<div class="db-progress-fill <?php echo esc_attr( $devbench_mem_class ); ?>"
+					style="width:<?php echo esc_attr( min( $devbench_stats['memory_pct'], 100 ) ); ?>%"></div>
+			</div>
+			<div class="db-muted db-mt-8 db-text-sm">
+				<?php
+				printf(
+					/* translators: %d: percentage of the PHP memory limit in use. */
+					esc_html__( '%d%% of limit on this request', 'devbench' ),
+					(int) $devbench_stats['memory_pct']
+				);
+				?>
+			</div>
+		</div>
+	</div>
 </div>
 
 <div class="db-grid db-grid-2" style="margin-bottom:16px">
-    <!-- Quick actions -->
-    <div class="db-card">
-        <div class="db-card-head">
-            <h3 class="db-card-title"><?php echo DevBench_Helpers::icon( 'zap', 15 ); ?> Quick Actions</h3>
-        </div>
-        <div class="db-card-body">
-            <div class="db-grid db-grid-2" style="gap:6px">
-                <?php
-				$qa = [
-					[ 'devbench-search',   'search',   'Search & Locator' ],
-					[ 'devbench-debug',    'bug',      'Debug Manager' ],
-					[ 'devbench-logs',     'chart',    'Log Analyzer' ],
-					[ 'devbench-files',    'folder',   'File Manager' ],
-					[ 'devbench-database', 'database', 'Database' ],
-					[ 'devbench-snippet',  'zap',      'Snippet Runner' ],
-					[ 'devbench-config',   'sliders',  'WP Config' ],
-					[ 'devbench-plugins',  'plug',     'Plugins & Themes' ],
-					[ 'devbench-mail',     'mail',     'Mail Catcher' ],
-					[ 'devbench-env',      'shield',   'Env Checker' ],
-				];
-				foreach ( $qa as $a ) : ?>
-                <a class="db-quick-action" href="<?php echo admin_url( 'admin.php?page=' . $a[0] ); ?>">
-                    <?php echo DevBench_Helpers::icon( $a[1], 15 ); ?> <?php echo esc_html( $a[2] ); ?>
-                </a>
-                <?php endforeach; ?>
-            </div>
-        </div>
-    </div>
+	<!-- Quick actions -->
+	<div class="db-card">
+		<div class="db-card-head">
+			<h3 class="db-card-title"><?php DevBench_Helpers::the_icon( 'zap', 15 ); ?> <?php esc_html_e( 'Quick Actions', 'devbench' ); ?></h3>
+		</div>
+		<div class="db-card-body">
+			<div class="db-grid db-grid-2" style="gap:6px">
+				<?php
+				$devbench_actions = array(
+					array( 'devbench-search', 'search', __( 'Search & Locator', 'devbench' ) ),
+					array( 'devbench-debug', 'bug', __( 'Debug Manager', 'devbench' ) ),
+					array( 'devbench-logs', 'chart', __( 'Log Analyzer', 'devbench' ) ),
+					array( 'devbench-files', 'folder', __( 'File Manager', 'devbench' ) ),
+					array( 'devbench-database', 'database', __( 'Database', 'devbench' ) ),
+					array( 'devbench-snippet', 'zap', __( 'Snippet Runner', 'devbench' ) ),
+					array( 'devbench-config', 'sliders', __( 'WP Config', 'devbench' ) ),
+					array( 'devbench-plugins', 'plug', __( 'Plugins & Themes', 'devbench' ) ),
+					array( 'devbench-mail', 'mail', __( 'Mail Catcher', 'devbench' ) ),
+					array( 'devbench-env', 'shield', __( 'Env Checker', 'devbench' ) ),
+				);
+				foreach ( $devbench_actions as $devbench_action ) :
+					?>
+				<a class="db-quick-action" href="<?php echo esc_url( admin_url( 'admin.php?page=' . $devbench_action[0] ) ); ?>">
+					<?php DevBench_Helpers::the_icon( $devbench_action[1], 15 ); ?> <?php echo esc_html( $devbench_action[2] ); ?>
+				</a>
+				<?php endforeach; ?>
+			</div>
+		</div>
+	</div>
 
-    <!-- Right column -->
-    <div>
-        <?php if ( $recent ) : ?>
-        <div class="db-card">
-            <div class="db-card-head">
-                <h3 class="db-card-title db-text-red"><?php echo DevBench_Helpers::icon( 'bug', 15 ); ?> Recent Errors
-                </h3>
-                <a class="db-btn db-btn-ghost db-btn-sm"
-                    href="<?php echo admin_url( 'admin.php?page=devbench-logs' ); ?>">Analyze →</a>
-            </div>
-            <div class="db-card-body flush">
-                <?php foreach ( $recent as $e ) : ?>
-                <div class="db-mono db-text-xs db-text-2 db-truncate"
-                    style="padding:9px 16px;border-bottom:1px solid var(--db-border)"
-                    title="<?php echo esc_attr( $e ); ?>"><?php echo esc_html( mb_substr( $e, 0, 110 ) ); ?></div>
-                <?php endforeach; ?>
-            </div>
-        </div>
-        <?php endif; ?>
+	<!-- Right column -->
+	<div>
+		<?php if ( $devbench_stats['recent_errors'] ) : ?>
+		<div class="db-card">
+			<div class="db-card-head">
+				<h3 class="db-card-title db-text-red"><?php DevBench_Helpers::the_icon( 'bug', 15 ); ?> <?php esc_html_e( 'Recent Errors', 'devbench' ); ?></h3>
+				<a class="db-btn db-btn-ghost db-btn-sm" href="<?php echo esc_url( admin_url( 'admin.php?page=devbench-logs' ) ); ?>">
+					<?php esc_html_e( 'Analyze', 'devbench' ); ?> &rarr;
+				</a>
+			</div>
+			<div class="db-card-body flush">
+				<?php foreach ( $devbench_stats['recent_errors'] as $devbench_error ) : ?>
+				<div class="db-mono db-text-xs db-text-2 db-truncate"
+					style="padding:9px 16px;border-bottom:1px solid var(--db-border)"
+					title="<?php echo esc_attr( $devbench_error ); ?>"><?php echo esc_html( mb_substr( $devbench_error, 0, 110 ) ); ?></div>
+				<?php endforeach; ?>
+			</div>
+		</div>
+		<?php endif; ?>
 
-        <div class="db-card db-mb-0">
-            <div class="db-card-head">
-                <h3 class="db-card-title"><?php echo DevBench_Helpers::icon( 'info', 15 ); ?> Environment</h3>
-            </div>
-            <div class="db-card-body">
-                <table class="db-info-table">
-                    <tr>
-                        <td>Site URL</td>
-                        <td><?php echo esc_html( get_site_url() ); ?></td>
-                    </tr>
-                    <tr>
-                        <td>WordPress root</td>
-                        <td><?php echo esc_html( ABSPATH ); ?></td>
-                    </tr>
-                    <tr>
-                        <td>DB prefix</td>
-                        <td><?php echo esc_html( $wpdb->prefix ); ?></td>
-                    </tr>
-                    <tr>
-                        <td>Timezone</td>
-                        <td><?php echo esc_html( wp_timezone_string() ); ?></td>
-                    </tr>
-                    <tr>
-                        <td>Locale</td>
-                        <td><?php echo esc_html( get_locale() ); ?></td>
-                    </tr>
-                    <tr>
-                        <td>Autoload</td>
-                        <td><?php echo DevBench_Helpers::filesize( $autoload ); ?>
-                            <?php echo $autoload > 800 * 1024 ? '<span class="db-badge db-badge-red">high</span>' : '<span class="db-badge db-badge-green">ok</span>'; ?>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td>Quick notes</td>
-                        <td><?php echo count( $notes ); ?></td>
-                    </tr>
-                </table>
-            </div>
-        </div>
-    </div>
+		<div class="db-card db-mb-0">
+			<div class="db-card-head">
+				<h3 class="db-card-title"><?php DevBench_Helpers::the_icon( 'info', 15 ); ?> <?php esc_html_e( 'Environment', 'devbench' ); ?></h3>
+			</div>
+			<div class="db-card-body">
+				<table class="db-info-table">
+					<tr>
+						<td><?php esc_html_e( 'Site URL', 'devbench' ); ?></td>
+						<td><?php echo esc_html( get_site_url() ); ?></td>
+					</tr>
+					<tr>
+						<td><?php esc_html_e( 'WordPress root', 'devbench' ); ?></td>
+						<td><?php echo esc_html( ABSPATH ); ?></td>
+					</tr>
+					<tr>
+						<td><?php esc_html_e( 'DB prefix', 'devbench' ); ?></td>
+						<td><?php echo esc_html( $devbench_stats['db_prefix'] ); ?></td>
+					</tr>
+					<tr>
+						<td><?php esc_html_e( 'Timezone', 'devbench' ); ?></td>
+						<td><?php echo esc_html( wp_timezone_string() ); ?></td>
+					</tr>
+					<tr>
+						<td><?php esc_html_e( 'Locale', 'devbench' ); ?></td>
+						<td><?php echo esc_html( get_locale() ); ?></td>
+					</tr>
+					<tr>
+						<td><?php esc_html_e( 'Autoload', 'devbench' ); ?></td>
+						<td>
+							<?php echo esc_html( DevBench_Helpers::filesize( $devbench_stats['autoload'] ) ); ?>
+							<?php if ( $devbench_stats['autoload'] > DevBench_Reports::AUTOLOAD_WARN ) : ?>
+								<span class="db-badge db-badge-red"><?php esc_html_e( 'high', 'devbench' ); ?></span>
+							<?php else : ?>
+								<span class="db-badge db-badge-green"><?php esc_html_e( 'ok', 'devbench' ); ?></span>
+							<?php endif; ?>
+						</td>
+					</tr>
+					<tr>
+						<td><?php esc_html_e( 'Quick notes', 'devbench' ); ?></td>
+						<td><?php echo (int) $devbench_stats['note_count']; ?></td>
+					</tr>
+				</table>
+			</div>
+		</div>
+	</div>
 </div>
 
 <!-- Config constants -->
 <div class="db-card">
-    <div class="db-card-head">
-        <h3 class="db-card-title"><?php echo DevBench_Helpers::icon( 'settings', 15 ); ?> wp-config.php Constants</h3>
-        <a class="db-btn db-btn-ghost db-btn-sm"
-            href="<?php echo admin_url( 'admin.php?page=devbench-config' ); ?>">Edit →</a>
-    </div>
-    <div class="db-card-body">
-        <div class="db-flex db-wrap db-gap-8">
-            <?php
-			$consts = [ 'WP_DEBUG', 'WP_DEBUG_LOG', 'WP_DEBUG_DISPLAY', 'SCRIPT_DEBUG', 'SAVEQUERIES', 'WP_CACHE', 'DISALLOW_FILE_EDIT', 'FORCE_SSL_ADMIN', 'WP_MEMORY_LIMIT', 'DB_NAME', 'DB_HOST' ];
-			foreach ( $consts as $c ) :
-				$d     = DevBench_Helpers::constant_display( $c );
-				$color = $d['type'] === 'undefined' ? 'var(--db-muted)' : ( $d['value'] === 'true' ? 'var(--db-green)' : ( $d['value'] === 'false' ? 'var(--db-red)' : 'var(--db-accent)' ) );
-			?>
-            <div class="db-const-chip">
-                <div class="db-const-chip-name"><?php echo esc_html( $c ); ?></div>
-                <div class="db-const-chip-val" style="color:<?php echo $color; ?>">
-                    <?php echo esc_html( mb_substr( $d['value'], 0, 28 ) ); ?></div>
-            </div>
-            <?php endforeach; ?>
-        </div>
-    </div>
+	<div class="db-card-head">
+		<h3 class="db-card-title"><?php DevBench_Helpers::the_icon( 'settings', 15 ); ?> <?php esc_html_e( 'wp-config.php Constants', 'devbench' ); ?></h3>
+		<a class="db-btn db-btn-ghost db-btn-sm" href="<?php echo esc_url( admin_url( 'admin.php?page=devbench-config' ) ); ?>">
+			<?php esc_html_e( 'Edit', 'devbench' ); ?> &rarr;
+		</a>
+	</div>
+	<div class="db-card-body">
+		<div class="db-flex db-wrap db-gap-8">
+			<?php
+			$devbench_constants = array(
+				'WP_DEBUG',
+				'WP_DEBUG_LOG',
+				'WP_DEBUG_DISPLAY',
+				'SCRIPT_DEBUG',
+				'SAVEQUERIES',
+				'WP_CACHE',
+				'DISALLOW_FILE_EDIT',
+				'FORCE_SSL_ADMIN',
+				'WP_MEMORY_LIMIT',
+				'DB_NAME',
+				'DB_HOST',
+			);
+			foreach ( $devbench_constants as $devbench_constant ) :
+				$devbench_display = DevBench_Helpers::constant_display( $devbench_constant );
+
+				if ( 'undefined' === $devbench_display['type'] ) {
+					$devbench_color = 'var(--db-muted)';
+				} elseif ( 'true' === $devbench_display['value'] ) {
+					$devbench_color = 'var(--db-green)';
+				} elseif ( 'false' === $devbench_display['value'] ) {
+					$devbench_color = 'var(--db-red)';
+				} else {
+					$devbench_color = 'var(--db-accent)';
+				}
+				?>
+			<div class="db-const-chip">
+				<div class="db-const-chip-name"><?php echo esc_html( $devbench_constant ); ?></div>
+				<div class="db-const-chip-val" style="color:<?php echo esc_attr( $devbench_color ); ?>">
+					<?php echo esc_html( mb_substr( $devbench_display['value'], 0, 28 ) ); ?>
+				</div>
+			</div>
+			<?php endforeach; ?>
+		</div>
+	</div>
 </div>
 
-<?php include __DIR__ . '/_footer.php'; ?>
+<?php require __DIR__ . '/_footer.php'; ?>

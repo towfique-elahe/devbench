@@ -4,7 +4,7 @@
 
 DevBench brings the tools you actually reach for during development — debugging, file editing, database browsing, search, mail testing, and environment auditing — into a single clean, card-based admin interface. It ships with a calm, neutral design system that defaults to **dark mode** (with a one-click light/dark toggle), so it feels right at home for development work.
 
-![Version](https://img.shields.io/badge/version-1.1.0-6366f1) ![WordPress](https://img.shields.io/badge/WordPress-5.5%2B-blue) ![PHP](https://img.shields.io/badge/PHP-7.4%2B-777bb4) ![License](https://img.shields.io/badge/license-GPL--2.0%2B-green)
+![Version](https://img.shields.io/badge/version-1.2.0-6366f1) ![WordPress](https://img.shields.io/badge/WordPress-6.6%2B-blue) ![PHP](https://img.shields.io/badge/PHP-7.4%2B-777bb4) ![License](https://img.shields.io/badge/license-GPL--2.0%2B-green)
 
 ---
 
@@ -48,23 +48,64 @@ Or install manually by extracting the `devbench` folder into `wp-content/plugins
 
 ## Requirements
 
-- WordPress 5.5 or higher
+- WordPress 6.6 or higher
 - PHP 7.4 or higher
-- A user with the `manage_options` capability (administrator)
+- An administrator (`manage_options`; `manage_network_options` on multisite)
 
 ---
 
 ## Security
 
-DevBench is a powerful tool intended for **development and staging environments**. All actions require the `manage_options` capability and are protected by nonces. Several features (snippet runner, file editor, config editor) can modify your site directly — use them with care, and avoid leaving the plugin active on production.
+DevBench is a powerful tool intended for **development and staging environments**. Several features (snippet runner, file editor, config editor) can modify your site directly — use them with care, and avoid leaving the plugin active on production.
 
-- Path traversal is blocked: file operations are confined within `ABSPATH`.
-- `DROP DATABASE`, `DROP TABLE`, and `TRUNCATE` are blocked in the SQL runner.
-- File uploads are limited to a whitelist of safe extensions.
+- Every request requires the plugin capability (`manage_network_options` on multisite) **and** a valid nonce, checked both at the AJAX router and again inside each module handler.
+- All write operations — file edits, `wp-config.php` changes and the snippet runner — additionally respect `DISALLOW_FILE_EDIT` and `DISALLOW_FILE_MODS`. When either is set, DevBench becomes read-only and says so.
+- Path traversal is blocked: paths are rejected outright if they contain `..`, and the resolved real path must sit inside `ABSPATH` (so symlinks cannot escape either).
+- All file I/O goes through the WordPress Filesystem API rather than direct PHP calls.
+- Table and column identifiers reach the database through `$wpdb->prepare()`'s `%i` placeholder, and table names are validated against `SHOW TABLES` first.
+- `DROP DATABASE`, `DROP TABLE` and `TRUNCATE` are blocked in the SQL runner.
+- Uploads are limited to an extension allowlist and rejected when the file contents do not match the extension.
+- Keys, salts and passwords in `wp-config.php` are masked in the Config Editor and cannot be edited or deleted through it.
+
+---
+
+## Development
+
+The repository ships a PHPCS ruleset matching the checks the WordPress.org Plugin Check runs:
+
+```bash
+composer require --dev squizlabs/php_codesniffer wp-coding-standards/wpcs phpcompatibility/phpcompatibility-wp
+./vendor/bin/phpcs --standard=phpcs.xml .
+```
+
+`phpcs.xml`, `README.md` and the dotfiles are excluded from the distributed ZIP via `.distignore`.
 
 ---
 
 ## Changelog
+
+### 1.2.0
+
+**Security & hardening**
+- All file, directory and permission operations now go through the WordPress Filesystem API.
+- File and `wp-config.php` writes respect `DISALLOW_FILE_EDIT` and `DISALLOW_FILE_MODS`, with a clear in-app notice when they are set.
+- Multisite now requires `manage_network_options` rather than `manage_options`.
+- Table and column identifiers use `$wpdb->prepare()` `%i` placeholders.
+- Uploads are validated with `wp_check_filetype_and_ext()`.
+- Every AJAX handler re-verifies the nonce and capability; all request input is unslashed before sanitizing.
+- Every dynamic value printed by the admin templates is escaped at output.
+- Keys, salts and passwords are masked in the Config Editor and are no longer editable through it.
+
+**Fixes**
+- **Mail Catcher recorded nothing.** It hooked `pre_wp_mail` to block delivery and `wp_mail` to capture, but the former short-circuits before the latter runs — so mail was suppressed and never logged. Both now happen in one callback.
+- **Options Manager and autoload reporting were wrong on WordPress 6.6+**, where the `autoload` column gained `on`/`off`/`auto` values alongside `yes`/`no`.
+- Table exports are now read in chunks, so large tables no longer have to fit in memory.
+
+**Housekeeping**
+- Added `readme.txt`, `uninstall.php`, `.gitignore`, `.distignore` and a `phpcs.xml` ruleset.
+- Report-screen data gathering moved out of the templates into `DevBench_Reports`.
+- Removed dead duplicate search code paths and de-duplicated the clipboard helper.
+- Raised the minimum WordPress version to 6.6.
 
 ### 1.1.0
 

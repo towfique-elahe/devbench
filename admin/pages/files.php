@@ -1,10 +1,10 @@
 <?php
 defined( 'ABSPATH' ) || exit;
-$page_id = 'devbench-files';
-include __DIR__ . '/_header.php';
+$devbench_page_id = 'devbench-files';
+require __DIR__ . '/_header.php';
 ?>
 <div class="db-page-head">
-	<h1><?php echo DevBench_Helpers::icon('folder',22); ?> File Manager</h1>
+	<h1><?php DevBench_Helpers::the_icon('folder',22); ?> File Manager</h1>
 	<p>Browse, edit, upload, and manage files within your WordPress install. The editor includes session version control.</p>
 </div>
 
@@ -13,9 +13,9 @@ include __DIR__ . '/_header.php';
 		<div class="db-breadcrumb" id="db-fm-breadcrumb"></div>
 		<div class="db-flex db-gap-8 db-wrap">
 			<input type="text" class="db-input db-btn-sm" id="db-fm-search" placeholder="Filter in folder…" style="width:170px;height:30px">
-			<button class="db-btn db-btn-sm" id="db-fm-newfile"><?php echo DevBench_Helpers::icon('code',14); ?> New File</button>
-			<button class="db-btn db-btn-sm" id="db-fm-newfolder"><?php echo DevBench_Helpers::icon('folder',14); ?> New Folder</button>
-			<button class="db-btn db-btn-sm" id="db-fm-upload"><?php echo DevBench_Helpers::icon('upload',14); ?> Upload</button>
+			<button class="db-btn db-btn-sm" id="db-fm-newfile"><?php DevBench_Helpers::the_icon('code',14); ?> New File</button>
+			<button class="db-btn db-btn-sm" id="db-fm-newfolder"><?php DevBench_Helpers::the_icon('folder',14); ?> New Folder</button>
+			<button class="db-btn db-btn-sm" id="db-fm-upload"><?php DevBench_Helpers::the_icon('upload',14); ?> Upload</button>
 			<input type="file" id="db-fm-file-input" class="db-hidden">
 		</div>
 	</div>
@@ -37,7 +37,7 @@ include __DIR__ . '/_header.php';
 	</div>
 </div>
 
-<?php include __DIR__ . '/_editor_modal.php'; ?>
+<?php require __DIR__ . '/_editor_modal.php'; ?>
 
 <!-- Generic modal -->
 <div class="db-modal-overlay" id="db-fm-modal">
@@ -254,4 +254,4 @@ window.DBPages['devbench-files'] = function () {
 };
 </script>
 
-<?php include __DIR__ . '/_footer.php'; ?>
+<?php require __DIR__ . '/_footer.php'; ?>
