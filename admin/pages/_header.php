@@ -71,6 +71,18 @@ window.DBPages = window.DBPages || {};
 			<div class="db-sidebar-footer-site"><?php echo esc_html( $devbench_site_host ); ?></div>
 			<div class="db-sidebar-footer-row">
 				<a href="<?php echo esc_url( admin_url() ); ?>">&larr; <?php esc_html_e( 'WP Admin', 'devbench' ); ?></a>
+				<?php
+				/*
+				 * Deliberately quiet, and only ever on DevBench's own screens —
+				 * guideline 11 allows a contextual prompt here but not a
+				 * site-wide nag, and guideline 10 does not apply because nothing
+				 * of this reaches the front end.
+				 */
+				?>
+				<a href="<?php echo esc_url( DEVBENCH_DONATE_URL ); ?>" target="_blank" rel="noopener noreferrer"
+					aria-label="<?php esc_attr_e( 'Support DevBench (opens in a new tab)', 'devbench' ); ?>">
+					<?php DevBench_Helpers::the_icon( 'heart', 12 ); ?> <?php esc_html_e( 'Support', 'devbench' ); ?>
+				</a>
 			</div>
 		</div>
 	</aside>

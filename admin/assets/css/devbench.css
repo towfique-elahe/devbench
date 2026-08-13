@@ -371,6 +371,9 @@ body.devbench-screen #wpbody-content {
   gap: 8px;
 }
 .db-sidebar-footer a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 11px;
   color: var(--db-muted);
   font-weight: 400;

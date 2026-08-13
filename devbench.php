@@ -22,6 +22,8 @@ define( 'DEVBENCH_FILE', __FILE__ );
 define( 'DEVBENCH_PATH', plugin_dir_path( __FILE__ ) );
 define( 'DEVBENCH_URL', plugin_dir_url( __FILE__ ) );
 define( 'DEVBENCH_SLUG', 'devbench' );
+// Kept in step with the "Donate link" header in readme.txt.
+define( 'DEVBENCH_DONATE_URL', 'https://towfiqueelahe.com/support/' );
 
 // Autoload core classes. Order matters: helpers depends on the filesystem wrapper.
 foreach ( array( 'fs', 'helpers', 'debug', 'files', 'database', 'tools', 'search', 'extra', 'reports', 'admin' ) as $devbench_module ) {
