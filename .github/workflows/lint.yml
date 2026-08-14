@@ -1,0 +1,42 @@
+name: Lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  phpcs:
+    name: PHPCS (WordPress standards)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '7.4'
+          coverage: none
+          tools: composer
+
+      - run: composer install --no-interaction --prefer-dist
+
+      # The same ruleset the WordPress.org Plugin Check applies. Kept green
+      # deliberately: it is a useful ratchet even though this plugin is not
+      # distributed through the directory.
+      - run: composer lint
+
+  php-syntax:
+    name: PHP syntax
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php: ['7.4', '8.3']
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+      - run: find . -name '*.php' -not -path './vendor/*' -print0 | xargs -0 -n1 php -l

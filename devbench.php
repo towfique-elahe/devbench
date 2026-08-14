@@ -11,6 +11,7 @@
  * Text Domain:       devbench
  * Requires at least: 6.6
  * Requires PHP:      7.4
+ * Update URI:        https://github.com/towfique-elahe/devbench
  *
  * @package DevBench
  */

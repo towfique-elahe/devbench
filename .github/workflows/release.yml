@@ -1,0 +1,66 @@
+name: Release
+
+# Tag a release and this builds the installable ZIP and attaches it:
+#   git tag v1.3.0 && git push origin v1.3.0
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the tag matches the plugin version
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          HEADER=$(grep -m1 '^ \* Version:' devbench.php | awk '{print $3}')
+          CONST=$(grep -m1 "DEVBENCH_VERSION" devbench.php | sed -E "s/.*'([0-9.]+)'.*/\1/")
+
+          echo "tag=$TAG  header=$HEADER  constant=$CONST"
+
+          # A tag that disagrees with the plugin header ships a build whose
+          # "update available" check will never fire. Fail loudly instead.
+          if [ "$TAG" != "$HEADER" ] || [ "$TAG" != "$CONST" ]; then
+            echo "::error::Version mismatch — tag $TAG, header $HEADER, constant $CONST"
+            exit 1
+          fi
+          echo "VERSION=$TAG" >> "$GITHUB_ENV"
+
+      - name: Stage the plugin folder
+        run: |
+          mkdir -p build/devbench
+          rsync -a \
+            --exclude-from=.distignore \
+            --exclude='.git' \
+            --exclude='build' \
+            ./ build/devbench/
+
+      - name: Build the ZIP
+        run: |
+          cd build
+          zip -rq "../devbench-${VERSION}.zip" devbench
+          cd ..
+          echo "Contents:"
+          unzip -Z1 "devbench-${VERSION}.zip"
+
+      - name: Refuse to ship development files
+        run: |
+          # Cheap insurance: these must never reach a user's install.
+          if unzip -Z1 "devbench-${VERSION}.zip" | grep -Ee '/\.' -e 'phpcs\.xml' -e 'composer\.(json|lock)'; then
+            echo "::error::Development files leaked into the ZIP"
+            exit 1
+          fi
+          echo "ZIP is clean"
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: devbench-${{ env.VERSION }}.zip
+          generate_release_notes: true

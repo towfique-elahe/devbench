@@ -38,12 +38,31 @@ DevBench brings the tools you actually reach for during development — debuggin
 
 ## Installation
 
-1. Download the plugin ZIP.
-2. In WordPress admin, go to **Plugins → Add New → Upload Plugin**.
-3. Choose the ZIP and click **Install Now**, then **Activate**.
+DevBench is distributed here rather than through the WordPress Plugin Directory — see [the FAQ](#why-isnt-this-on-wordpressorg) for why.
+
+**From a release (recommended)**
+
+1. Download `devbench-x.y.z.zip` from [Releases](https://github.com/towfique-elahe/devbench/releases).
+2. In WordPress admin go to **Plugins → Add New → Upload Plugin**.
+3. Choose the ZIP, click **Install Now**, then **Activate**.
 4. Open **DevBench** from the admin menu.
 
-Or install manually by extracting the `devbench` folder into `wp-content/plugins/`.
+**With Composer**
+
+```json
+{
+  "repositories": [
+    { "type": "vcs", "url": "https://github.com/towfique-elahe/devbench" }
+  ],
+  "require": {
+    "towfique-elahe/devbench": "^1.3"
+  }
+}
+```
+
+**Manually**
+
+Extract the `devbench` folder into `wp-content/plugins/`.
 
 ---
 
@@ -52,6 +71,32 @@ Or install manually by extracting the `devbench` folder into `wp-content/plugins
 - WordPress 6.6 or higher
 - PHP 7.4 or higher
 - An administrator (`manage_options`; `manage_network_options` on multisite)
+
+---
+
+## FAQ
+
+### Is DevBench safe to run on a production site?
+
+No. It is a development tool. It can edit files, rewrite `wp-config.php`, run arbitrary SQL and execute PHP. Use it locally or on staging, and deactivate it on production.
+
+### Why isn't this on WordPress.org?
+
+The Plugin Directory does not accept plugins that let users execute arbitrary PHP or SQL, or edit files and configuration — regardless of the safeguards around them. That is a reasonable line for a directory whose audience is largely non-technical site owners, and it is precisely what DevBench is for. So it lives here instead, aimed at developers who already install plugins from a zip.
+
+### Why are the File Manager and Config Editor disabled?
+
+DevBench honours the `DISALLOW_FILE_EDIT` and `DISALLOW_FILE_MODS` constants. If either is `true` in `wp-config.php`, every file and config write is blocked and the UI says so. Read-only browsing still works.
+
+### Why can't I see DevBench on my multisite subsite?
+
+On multisite it requires `manage_network_options` (super admin), because its tools reach files and tables shared by the whole network.
+
+### Does DevBench send any data anywhere?
+
+Not on its own. It makes no external requests, phones nothing home and collects no analytics.
+
+The one exception is the **Report a Bug** screen, which you fill in and submit yourself. It sends a single email through your own site's mail setup. The optional environment block is printed in full on that screen before you send, so you can read exactly what would be attached — it contains no keys, salts, passwords or database credentials.
 
 ---
 
@@ -73,14 +118,23 @@ DevBench is a powerful tool intended for **development and staging environments*
 
 ## Development
 
-The repository ships a PHPCS ruleset matching the checks the WordPress.org Plugin Check runs:
-
 ```bash
-composer require --dev squizlabs/php_codesniffer wp-coding-standards/wpcs phpcompatibility/phpcompatibility-wp
-./vendor/bin/phpcs --standard=phpcs.xml .
+composer install
+composer lint          # PHPCS, WordPress standards
 ```
 
-`phpcs.xml`, `README.md` and the dotfiles are excluded from the distributed ZIP via `.distignore`.
+`phpcs.xml` mirrors the ruleset the WordPress.org Plugin Check applies. It is kept green deliberately — a useful ratchet even though this plugin is not distributed through the directory. CI runs it on every push, alongside a PHP 7.4 and 8.3 syntax check.
+
+### Cutting a release
+
+Bump the version in **both** places in `devbench.php` (the `Version:` header and `DEVBENCH_VERSION`) and in the README badge, add a changelog entry, then:
+
+```bash
+git tag v1.3.0
+git push origin v1.3.0
+```
+
+The release workflow verifies the tag matches the plugin version, builds the ZIP from `.distignore`, refuses to ship if any development file leaked in, and attaches the artifact to the GitHub release.
 
 ---
 

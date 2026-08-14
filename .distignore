@@ -7,7 +7,7 @@
 Thumbs.db
 node_modules
 vendor
+build
 composer.json
 composer.lock
 phpcs.xml
-README.md
